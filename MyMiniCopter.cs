@@ -5,10 +5,11 @@ using Convert = System.Convert;
 using System;
 using System.Linq;
 using Oxide.Game.Rust.Cui;
+using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.0")]
+    [Info("My Mini Copter", "RFC1920", "0.1.1")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -46,7 +47,8 @@ namespace Oxide.Plugins
         private bool HasPermission(ConsoleSystem.Arg arg, string permname) => (arg.Connection.player as BasePlayer) == null ? true : permission.UserHasPermission((arg.Connection.player as BasePlayer).UserIDString, permname);
 
         #region loadunload
-        void Init()
+        //void Init()
+        void Loaded()
         {
             LoadVariables();
             permission.RegisterPermission(MinicopterSpawn, this);
@@ -83,6 +85,7 @@ namespace Oxide.Plugins
                 {"SpawnedMsg", "Your mini copter has spawned !\nUse command '/nomini' to remove it."},
                 {"KilledMsg", "Your mini copter has been removed/killed."},
                 {"NoPermMsg", "You are not allowed to do this."},
+                {"SpawnUsage", "You need to supply a valid SteamId."},
                 {"NoFoundMsg", "You do not have an active copter."},
                 {"FoundMsg", "Your copter is located at {0}."},
                 {"CooldownMsg", "You must wait {0} seconds before spawning a new mini copter."},
@@ -95,6 +98,7 @@ namespace Oxide.Plugins
                 {"SpawnedMsg", "Votre mini hélico est arrivé !\nUtilisez la commande '/nomini' pour le supprimer."},
                 {"KilledMsg", "Votre mini hélico a disparu du monde."},
                 {"NoPermMsg", "Vous n'êtes pas autorisé."},
+                {"SpawnUsage", "Vous devez fournir un SteamId valide."},
                 {"NoFoundMsg", "Vous n'avez pas de mini hélico actif"},
                 {"FoundMsg", "Votre mini hélico est situé à {0}."},
                 {"CooldownMsg", "Vous devez attendre {0} secondes avant de créer un nouveau mini hélico."},
@@ -344,16 +348,21 @@ namespace Oxide.Plugins
 
         #region consolecommands
         // Console spawn
-        [ConsoleCommand("spawnminicopter"), Permission("myminicopter.admin")]
+        [ConsoleCommand("spawnminicopter")]
         private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if (!HasPermission(arg, MinicopterAdmin))
+            if(!HasPermission(arg, MinicopterAdmin))
             {
-                SendReply(arg, "You don't have access to this command");
+                SendReply(arg, _("NoPermMsg", arg.Connection.player as BasePlayer));
+                return;
+            }
+            if(arg.Args == null)
+            {
+                SendReply(arg, _("SpawnUsage", arg.Connection.player as BasePlayer));
                 return;
             }
 
-            if (arg.Args.Length == 1)
+            if(arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
                 if (steamid == null) return;
@@ -364,12 +373,17 @@ namespace Oxide.Plugins
         }
 
         // Console despawn
-        [ConsoleCommand("killminicopter"), Permission("myminicopter.admin")]
+        [ConsoleCommand("killminicopter")]
         private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
             if (!HasPermission(arg, MinicopterAdmin))
             {
-                SendReply(arg, "You don't have access to this command");
+                SendReply(arg, _("NoPermMsg", arg.Connection.player as BasePlayer));
+                return;
+            }
+            if(arg.Args == null)
+            {
+                SendReply(arg, _("SpawnUsage", arg.Connection.player as BasePlayer));
                 return;
             }
 
