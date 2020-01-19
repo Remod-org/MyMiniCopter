@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.3")]
+    [Info("My Mini Copter", "RFC1920", "0.1.4")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -22,6 +22,8 @@ namespace Oxide.Plugins
         private bool useCooldown = true;
         private bool copterDecay = false;
         private bool allowWhenBlocked = false;
+        private float stdFuelConsumption = 0.25f;
+        private float mindistance = 0f;
         const string MinicopterSpawn = "myminicopter.spawn";
         const string MinicopterFetch = "myminicopter.fetch";
         const string MinicopterAdmin = "myminicopter.admin";
@@ -90,6 +92,7 @@ namespace Oxide.Plugins
                 {"NoFoundMsg", "You do not have an active copter."},
                 {"FoundMsg", "Your copter is located at {0}."},
                 {"CooldownMsg", "You must wait {0} seconds before spawning a new mini copter."},
+                {"DistanceMsg", "You must be within {0} meters of your mini copter."},
                 {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."}
             }, this, "en");
 
@@ -103,6 +106,7 @@ namespace Oxide.Plugins
                 {"NoFoundMsg", "Vous n'avez pas de mini hélico actif"},
                 {"FoundMsg", "Votre mini hélico est situé à {0}."},
                 {"CooldownMsg", "Vous devez attendre {0} secondes avant de créer un nouveau mini hélico."},
+                {"DistanceMsg", "Vous devez être à moins de {0} mètres de votre mini-hélico."},
                 {"BlockedMsg", "Vous ne pouvez pas faire apparaître ou aller chercher votre hélico lorsque la construction est bloquée."}
             }, this, "fr");
         }
@@ -145,10 +149,12 @@ namespace Oxide.Plugins
         private void LoadVariables()
         {
             allowWhenBlocked = Convert.ToBoolean(GetConfig("Global", "Allow spawn when building blocked", false));
+            stdFuelConsumption = (float) Convert.ToSingle(GetConfig("Global", "Standard fuel consumption per second", 0.25));
             Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :")); // Chat prefix
             cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));
             useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
             copterDecay = Convert.ToBoolean(GetConfig("Allow decay on our minicopters", "Copter Decay", false));
+            mindistance = Convert.ToSingle(GetConfig("Minimum Distance for /nomini", "Value in meters", "0"));
 
             if (!ConfigChanged) return;
             SaveConfig();
@@ -353,13 +359,13 @@ namespace Oxide.Plugins
         [ConsoleCommand("spawnminicopter")]
         private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if(arg.IsRcon && arg.Args == null)
+            if(arg.IsRcon)
             {
-                Puts("You need to supply a valid SteamId.");
-                return;
-            }
-            else if(arg.IsRcon)
-            {
+                if(arg.Args == null)
+                {
+                    Puts("You need to supply a valid SteamId.");
+                    return;
+                }
             }
             else if(!HasPermission(arg, MinicopterAdmin))
             {
@@ -389,13 +395,13 @@ namespace Oxide.Plugins
         [ConsoleCommand("killminicopter")]
         private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if(arg.IsRcon && arg.Args == null)
+            if(arg.IsRcon)
             {
-                Puts("You need to supply a valid SteamId.");
-                return;
-            }
-            else if(arg.IsRcon)
-            {
+                if(arg.Args == null)
+                {
+                    Puts("You need to supply a valid SteamId.");
+                    return;
+                }
             }
             else if(!HasPermission(arg, MinicopterAdmin))
             {
@@ -445,6 +451,10 @@ namespace Oxide.Plugins
             {
                 miniCopter.fuelPerSec = 0f;
             }
+            else
+            {
+                miniCopter.fuelPerSec = stdFuelConsumption;
+            }
             vehicleMini.Spawn();
 
             PrintMsgL(player, "SpawnedMsg");
@@ -463,7 +473,27 @@ namespace Oxide.Plugins
         // Kill minicopter hook
         private void KillMyMinicopterPlease(BasePlayer player)
         {
-            if (storedData.playerminiID.ContainsKey(player.userID) == true)
+            bool foundcopter = false;
+            if(mindistance == 0f)
+            {
+                foundcopter = true;
+            }
+            else
+            {
+                List<BaseEntity> copterlist = new List<BaseEntity>();
+                Vis.Entities<BaseEntity>(player.transform.position, mindistance, copterlist);
+
+                foreach(BaseEntity p in copterlist)
+                {
+                    var foundent = p.GetComponentInParent<MiniCopter>() ?? null;
+                    if(foundent != null)
+                    {
+                        foundcopter = true;
+                    }
+                }
+            }
+
+            if (storedData.playerminiID.ContainsKey(player.userID) == true && foundcopter)
             {
                 uint deluint;
                 storedData.playerminiID.TryGetValue(player.userID, out deluint);
@@ -480,6 +510,10 @@ namespace Oxide.Plugins
                     storedData.playercounter.Remove(player.userID);
                 }
                 SaveData();
+            }
+            else if(foundcopter == false)
+            {
+                PrintMsgL(player, "DistanceMsg", mindistance);
             }
         }
 
