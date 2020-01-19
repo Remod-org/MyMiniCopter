@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.2")]
+    [Info("My Mini Copter", "RFC1920", "0.1.3")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -20,6 +20,7 @@ namespace Oxide.Plugins
 
         private bool ConfigChanged;
         private bool useCooldown = true;
+        private bool copterDecay = false;
         private bool allowWhenBlocked = false;
         const string MinicopterSpawn = "myminicopter.spawn";
         const string MinicopterFetch = "myminicopter.fetch";
@@ -147,6 +148,7 @@ namespace Oxide.Plugins
             Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :")); // Chat prefix
             cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));
             useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
+            copterDecay = Convert.ToBoolean(GetConfig("Allow decay on our minicopters", "Copter Decay", false));
 
             if (!ConfigChanged) return;
             SaveConfig();
@@ -512,7 +514,7 @@ namespace Oxide.Plugins
             }
         }
 
-        // Disable decay for our copters
+        // Disable decay for our copters if so configured
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
             if(entity == null || hitInfo == null) return;
@@ -520,8 +522,15 @@ namespace Oxide.Plugins
 
             if(storedData.playerminiID.ContainsValue(entity.net.ID))
             {
-                if (debug) Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
-                hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
+                if(copterDecay)
+                {
+                    if (debug) Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
+                }
+                else
+                {
+                    if (debug) Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
+                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
+                }
                 return;
             }
             return;
