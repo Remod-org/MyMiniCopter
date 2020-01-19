@@ -10,7 +10,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.8")]
+    [Info("My Mini Copter", "RFC1920", "0.1.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -23,8 +23,10 @@ namespace Oxide.Plugins
         private bool copterDecay = false;
         private bool allowWhenBlocked = false;
         private bool killOnSleep = false;
+        private bool allowFuelIfUnlimited = false;
         private float stdFuelConsumption = 0.25f;
         private float mindistance = 0f;
+        private float gminidistance = 0f;
         const string MinicopterSpawn = "myminicopter.spawn";
         const string MinicopterFetch = "myminicopter.fetch";
         const string MinicopterAdmin = "myminicopter.admin";
@@ -68,6 +70,7 @@ namespace Oxide.Plugins
             if(((cooldownmin * 60) <= 120) & useCooldown)
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
+                cooldownmin = 2;
                 return;
             }
         }
@@ -156,7 +159,9 @@ namespace Oxide.Plugins
             useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
             copterDecay = Convert.ToBoolean(GetConfig("Allow decay on our minicopters", "Copter Decay", false));
             mindistance = Convert.ToSingle(GetConfig("Minimum Distance for /nomini", "Value in meters", "0"));
+            gminidistance = Convert.ToSingle(GetConfig("Minimum Distance for /gmini", "Value in meters", "0"));
             killOnSleep = Convert.ToBoolean(GetConfig("Global", "Destroy copter on player sleep", false));
+            allowFuelIfUnlimited = Convert.ToBoolean(GetConfig("Global", "Allow unlimited to use fuel tank", false));
 
             if(!ConfigChanged) return;
             SaveConfig();
@@ -290,6 +295,15 @@ namespace Oxide.Plugins
                 {
                     // Check for and dismount all players before moving the copter
                     var ent = BaseNetworkable.serverEntities.Find(findme);
+                    if(gminidistance > 0f)
+                    {
+                        if(Vector3.Distance(player.transform.position, ent.transform.position) > gminidistance)
+                        {
+                            PrintMsgL(player, "DistanceMsg", gminidistance);
+                            return;
+                        }
+                    }
+
                     var copter = ent as BaseVehicle;
                     BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
                     for(int i = 0; i < (int)mountpoints.Length; i++)
@@ -462,18 +476,28 @@ namespace Oxide.Plugins
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
             if(vehicleMini == null) return;
             BaseEntity miniEntity = vehicleMini as BaseEntity;
-            MiniCopter miniCopter = vehicleMini as MiniCopter;
             miniEntity.OwnerID = player.userID;
+
+            MiniCopter miniCopter = vehicleMini as MiniCopter;
+            vehicleMini.Spawn();
 
             if(permission.UserHasPermission(player.UserIDString, MinicopterUnlimited))
             {
+                // Set fuel requirements to 0
                 miniCopter.fuelPerSec = 0f;
+                if(!allowFuelIfUnlimited)
+                {
+                    // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
+                    // Also lock fuel container since there is no point in adding/removing fuel
+                    StorageContainer fuelCan = miniCopter.fuelStorageInstance.Get(true).GetComponent<StorageContainer>();
+                    ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
+                    fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
+                }
             }
             else
             {
                 miniCopter.fuelPerSec = stdFuelConsumption;
             }
-            vehicleMini.Spawn();
 
             PrintMsgL(player, "SpawnedMsg");
             uint minicopteruint = vehicleMini.net.ID;
