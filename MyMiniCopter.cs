@@ -1,3 +1,4 @@
+//#define DEBUG
 using UnityEngine;
 using System.Collections.Generic;
 using Oxide.Core;
@@ -9,12 +10,11 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.7")]
+    [Info("My Mini Copter", "RFC1920", "0.1.8")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
     {
-        bool debug = false;
         string Prefix = "[My MiniCopter] :";
         const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
 
@@ -22,6 +22,7 @@ namespace Oxide.Plugins
         private bool useCooldown = true;
         private bool copterDecay = false;
         private bool allowWhenBlocked = false;
+        private bool killOnSleep = false;
         private float stdFuelConsumption = 0.25f;
         private float mindistance = 0f;
         const string MinicopterSpawn = "myminicopter.spawn";
@@ -155,6 +156,7 @@ namespace Oxide.Plugins
             useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
             copterDecay = Convert.ToBoolean(GetConfig("Allow decay on our minicopters", "Copter Decay", false));
             mindistance = Convert.ToSingle(GetConfig("Minimum Distance for /nomini", "Value in meters", "0"));
+            killOnSleep = Convert.ToBoolean(GetConfig("Global", "Destroy copter on player sleep", false));
 
             if(!ConfigChanged) return;
             SaveConfig();
@@ -230,7 +232,9 @@ namespace Oxide.Plugins
 
                     if((secondsSinceEpoch - count) > (cooldownmin * 60))
                     {
-                        if(debug) Puts($"Player reached cooldown.  Clearing data.");
+#if DEBUG
+                        Puts($"Player reached cooldown.  Clearing data.");
+#endif
                         storedData.playercounter.Remove(player.userID);
                         SaveData();
                     }
@@ -240,7 +244,9 @@ namespace Oxide.Plugins
 
                         if(secsleft > 0)
                         {
-                            if(debug) Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
+#if DEBUG
+                            Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
+#endif
                             PrintMsgL(player, "CooldownMsg", secsleft.ToString());
                             return;
                         }
@@ -435,7 +441,7 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region hooks
+        #region ourhooks
         // Spawn hook
         private void SpawnMyMinicopter(BasePlayer player)
         {
@@ -471,7 +477,9 @@ namespace Oxide.Plugins
 
             PrintMsgL(player, "SpawnedMsg");
             uint minicopteruint = vehicleMini.net.ID;
-            if(debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {miniEntity.OwnerID}");
+#if DEBUG
+            Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {miniEntity.OwnerID}");
+#endif
             storedData.playerminiID.Remove(player.userID);
             storedData.playerminiID.Add(player.userID,minicopteruint);
             SaveData();
@@ -525,10 +533,15 @@ namespace Oxide.Plugins
             }
             else if(foundcopter == false)
             {
+#if DEBUG
+                Puts($"Player too far from copter to destroy.");
+#endif
                 PrintMsgL(player, "DistanceMsg", mindistance);
             }
         }
+        #endregion
 
+        #region hooks
         // On kill - tell owner
         void OnEntityKill(BaseNetworkable entity)
         {
@@ -540,7 +553,9 @@ namespace Oxide.Plugins
             ulong todelete = new ulong();
             if(storedData.playerminiID.ContainsValue(entity.net.ID) == false)
             {
-                if(debug) Puts($"KILLED non-plugin minicopter");
+#if DEBUG
+                Puts($"KILLED non-plugin minicopter");
+#endif
                 return;
             }
             foreach(var item in storedData.playerminiID)
@@ -571,16 +586,65 @@ namespace Oxide.Plugins
             {
                 if(copterDecay)
                 {
-                    if(debug) Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
+#if DEBUG
+                    Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
+#endif
                 }
                 else
                 {
-                    if(debug) Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
+#if DEBUG
+                    Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
+#endif
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
                 }
                 return;
             }
             return;
+        }
+
+        private void OnPlayerDisconnected(BasePlayer player, string reason)
+        {
+            if(!killOnSleep) return;
+            if(player == null) return;
+
+            if(storedData.playerminiID.ContainsKey(player.userID) == true)
+            {
+                uint deluint;
+                storedData.playerminiID.TryGetValue(player.userID, out deluint);
+                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(deluint);
+                if(tokill == null) return; // Didn't find it
+
+                // Check for mounted players
+                BaseVehicle copter = tokill as BaseVehicle;
+                BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
+                for(int i = 0; i < (int)mountpoints.Length; i++)
+                {
+                    BaseVehicle.MountPointInfo mountPointInfo = mountpoints[i];
+                    if(mountPointInfo.mountable != null)
+                    {
+                        BasePlayer mounted = mountPointInfo.mountable.GetMounted();
+                        if(mounted)
+                        {
+#if DEBUG
+                            Puts("Copter owner sleeping but another one is mounted - cannot destroy copter");
+#endif
+                            return;
+                        }
+                    }
+                }
+#if DEBUG
+                Puts("Copter owner sleeping - destroying copter");
+#endif
+                tokill.Kill();
+                storedData.playerminiID.Remove(player.userID);
+                baseplayerminicop.Remove(player.userID);
+
+                if(storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
+                {
+                    storedData.playercounter.Remove(player.userID);
+                }
+                SaveData();
+            }
         }
         #endregion
     }
