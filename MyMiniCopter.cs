@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.1")]
+    [Info("My Mini Copter", "RFC1920", "0.1.2")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -351,12 +351,20 @@ namespace Oxide.Plugins
         [ConsoleCommand("spawnminicopter")]
         private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if(!HasPermission(arg, MinicopterAdmin))
+            if(arg.IsRcon && arg.Args == null)
+            {
+                Puts("You need to supply a valid SteamId.");
+                return;
+            }
+            else if(arg.IsRcon)
+            {
+            }
+            else if(!HasPermission(arg, MinicopterAdmin))
             {
                 SendReply(arg, _("NoPermMsg", arg.Connection.player as BasePlayer));
                 return;
             }
-            if(arg.Args == null)
+            else if(arg.Args == null)
             {
                 SendReply(arg, _("SpawnUsage", arg.Connection.player as BasePlayer));
                 return;
@@ -365,10 +373,13 @@ namespace Oxide.Plugins
             if(arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
-                if (steamid == null) return;
-                if (steamid.IsSteamId() == false) return;
+                if(steamid == null) return;
+                if(steamid.IsSteamId() == false) return;
                 BasePlayer player = BasePlayer.FindByID(steamid);
-                SpawnMyMinicopter(player);
+                if(player != null)
+                {
+                    SpawnMyMinicopter(player);
+                }
             }
         }
 
@@ -376,24 +387,35 @@ namespace Oxide.Plugins
         [ConsoleCommand("killminicopter")]
         private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if (!HasPermission(arg, MinicopterAdmin))
+            if(arg.IsRcon && arg.Args == null)
+            {
+                Puts("You need to supply a valid SteamId.");
+                return;
+            }
+            else if(arg.IsRcon)
+            {
+            }
+            else if(!HasPermission(arg, MinicopterAdmin))
             {
                 SendReply(arg, _("NoPermMsg", arg.Connection.player as BasePlayer));
                 return;
             }
-            if(arg.Args == null)
+            else if(arg.Args == null)
             {
                 SendReply(arg, _("SpawnUsage", arg.Connection.player as BasePlayer));
                 return;
             }
 
-            if (arg.Args.Length == 1)
+            if(arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
-                if (steamid == null) return;
-                if (steamid.IsSteamId() == false) return;
+                if(steamid == null) return;
+                if(steamid.IsSteamId() == false) return;
                 BasePlayer player = BasePlayer.FindByID(steamid);
-                KillMyMinicopterPlease(player);
+                if(player != null)
+                {
+                    KillMyMinicopterPlease(player);
+                }
             }
         }
         #endregion
