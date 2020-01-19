@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.4")]
+    [Info("My Mini Copter", "RFC1920", "0.1.5")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -438,8 +438,13 @@ namespace Oxide.Plugins
                 return;
             }
 
-            Vector3 position = player.transform.position + (player.transform.forward * 5);
-            position.y = player.transform.position.y + 2f;
+            Quaternion rotation = player.GetNetworkRotation();
+            Vector3 forward = rotation * Vector3.forward;
+            // Make straight perpendicular to up axis so we don't spawn into ground or above player's head.
+            Vector3 straight = Vector3.Cross(Vector3.Cross(Vector3.up, forward), Vector3.up).normalized;
+            Vector3 position = player.transform.position + straight * 5f;
+            position.y = player.transform.position.y + 2.5f;
+
             if (position == null) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
             if (vehicleMini == null) return;
