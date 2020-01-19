@@ -2,112 +2,118 @@ using UnityEngine;
 using System.Collections.Generic;
 using Oxide.Core;
 using Convert = System.Convert;
+using System;
 using System.Linq;
 using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "BuzZ[PHOQUE]", "0.0.3")]
+    [Info("My Mini Copter", "RFC1920", "0.0.4")]
+    // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
-
-/*======================================================================================================================= 
-*   THANKS TO THE OXIDE/UMOD TEAM for coding quality, ideas, and time spent for the community
-*
-*   08 february 2019
-*   chat commands : /mymini    /nomini
-*
-*   0.0.1   20190208    creation
-*
-*   0.0.3               console commands spawnminicopter .userID / killminicopter .userID
-*=======================================================================================================================*/
-
     public class MyMiniCopter : RustPlugin
     {
         bool debug = false;
 
         string Prefix = "[My MiniCopter] :";
-        ulong SteamIDIcon = 76561198059533272;
 
         const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
 
         private bool ConfigChanged;
-        const string MinicopterSpawn = "myminicopter.spawn"; 
-        const string MinicopterCooldown = "myminicopter.cooldown"; 
-
+        private bool useCooldown = true;
+        const string MinicopterSpawn = "myminicopter.spawn";
+        const string MinicopterFetch = "myminicopter.fetch";
+        const string MinicopterAdmin = "myminicopter.admin";
+        const string MinicopterCooldown = "myminicopter.cooldown";
 
         float cooldownmin = 60f;
         float trigger = 60f;
-		private Timer clock;
-//BaseHelicopterVehicle
+        private Timer clock;
 
-        public Dictionary<BasePlayer, BaseVehicle > baseplayerminicop = new Dictionary<BasePlayer, BaseVehicle>(); //for FUTURE
+        public Dictionary<ulong, BaseVehicle > baseplayerminicop = new Dictionary<ulong, BaseVehicle>();
 
-    class StoredData
-    {
-        public Dictionary<ulong, uint> playerminiID = new Dictionary<ulong, uint>();
-        public Dictionary<ulong, float> playercounter = new Dictionary<ulong, float>();
-        public StoredData()
+        class StoredData
         {
+            public Dictionary<ulong, uint> playerminiID = new Dictionary<ulong, uint>();
+            public Dictionary<ulong, float> playercounter = new Dictionary<ulong, float>();
+            public StoredData()
+            {
+            }
         }
-    }
         private StoredData storedData;
 
+        #region loadunload
         void Init()
         {
             LoadVariables();
             permission.RegisterPermission(MinicopterSpawn, this);
+            permission.RegisterPermission(MinicopterFetch, this);
+            permission.RegisterPermission(MinicopterAdmin, this);
             permission.RegisterPermission(MinicopterCooldown, this);
-            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name); 
+            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
         }
 
-    void OnServerInitialized()
-    {
-        float cooldownsec = (cooldownmin * 60);
-        if (cooldownsec <= 120)
+        void OnServerInitialized()
         {
-            PrintError("Please set a longer cooldown time. Minimum is 2 min.");
-            return;
+            if (((float) (cooldownmin * 60) <= 120) & useCooldown)
+            {
+                PrintError("Please set a longer cooldown time. Minimum is 2 min.");
+                return;
+            }
         }
-		clock = timer.Repeat(trigger, 0, () =>
-		{
-            LetsClock();
-		});
-    }
 
         void Unload()
         {
             Interface.Oxide.DataFileSystem.WriteObject(Name, storedData);
         }
+        #endregion
 
-#region MESSAGES
-
+        #region MESSAGES
         protected override void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                {"AlreadyMsg", "You already have a mini helicopter.\nuse command '/nomini' to remove it."},
-                {"SpawnedMsg", "Your mini copter has spawned !\nuse command '/nomini' to remove it."},
+                {"AlreadyMsg", "You already have a mini helicopter.\nUse command '/nomini' to remove it."},
+                {"SpawnedMsg", "Your mini copter has spawned !\nUse command '/nomini' to remove it."},
                 {"KilledMsg", "Your mini copter has been removed/killed."},
                 {"NoPermMsg", "You are not allowed to do this."},
+                {"NoFoundMsg", "You do not have an active copter."},
+                {"FoundMsg", "Your copter is located at {0}."},
                 {"CooldownMsg", "You must wait before a new mini copter"},
-
             }, this, "en");
 
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                {"AlreadyMsg", "Vous avez déjà un mini hélicoptère\nutilisez la commande '/nomini' pour le supprimer."},
-                {"SpawnedMsg", "Votre mini hélico est arrivé !\nutilisez la commande '/nomini' pour le supprimer."},
+                {"AlreadyMsg", "Vous avez déjà un mini hélicoptère\nUtilisez la commande '/nomini' pour le supprimer."},
+                {"SpawnedMsg", "Votre mini hélico est arrivé !\nUtilisez la commande '/nomini' pour le supprimer."},
                 {"KilledMsg", "Votre mini hélico a disparu du monde."},
                 {"NoPermMsg", "Vous n'êtes pas autorisé."},
+                {"NoFoundMsg", "Vous n'avez pas de mini hélico actif"},
+                {"FoundMsg", "Votre mini hélico est situé à {0}."},
                 {"CooldownMsg", "Vous devez attendre avant de redemander un mini hélico"},
-
             }, this, "fr");
         }
 
-#endregion
+        private string _(string msgId, BasePlayer player, params object[] args)
+        {
+            var msg = lang.GetMessage(msgId, this, player?.UserIDString);
+            return args.Length > 0 ? string.Format(msg, args) : msg;
+        }
 
-#region CONFIG
+        private void PrintMsgL(BasePlayer player, string msgId, params object[] args)
+        {
+            if (player == null) return;
+            PrintMsg(player, _(msgId, player, args));
+        }
 
+        private void PrintMsg(BasePlayer player, string msg)
+        {
+            if (player == null) return;
+            SendReply(player, $"{Prefix}{msg}");
+        }
+        #endregion
+
+        #region CONFIG
         protected override void LoadDefaultConfig()
         {
             LoadVariables();
@@ -115,9 +121,9 @@ namespace Oxide.Plugins
 
         private void LoadVariables()
         {
-            Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :"));                       // CHAT PLUGIN PREFIX
-            SteamIDIcon = Convert.ToUInt64(GetConfig("Chat Settings", "SteamIDIcon", "76561198059533272"));        // SteamID FOR PLUGIN ICON - STEAM PROFILE CREATED FOR THIS PLUGIN / NONE YET /
-            cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));      
+            Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :")); // Chat prefix
+            cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));
+            useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
 
             if (!ConfigChanged) return;
             SaveConfig();
@@ -142,71 +148,44 @@ namespace Oxide.Plugins
             }
             return value;
         }
+        #endregion
 
-#endregion
-
-        void LetsClock()
-        {
-            foreach (BasePlayer player in BasePlayer.activePlayerList.ToList())
-            {
-                float cooldownsec = (cooldownmin * 60);
-                if (debug){Puts($"cooldown in seconds, calculated from config : {cooldownsec}");}
-                if (storedData.playercounter.ContainsKey(player.userID) == true)
-                {
-                    if (debug){Puts($"player cooldown counter increment");}
-                    float counting = new float();
-                    storedData.playercounter.TryGetValue(player.userID, out counting);
-                    storedData.playercounter.Remove(player.userID);
-                    counting = counting + trigger;
-                    storedData.playercounter.Add(player.userID, counting);
-                    if (debug){Puts($"player {player.userID} newtime {counting}");}
-                    if (counting >= cooldownsec)
-                    {
-                        if (debug){Puts($"player reached cooldown. removing from dict.");}
-                        storedData.playercounter.Remove(player.userID);
-                    }
-                    else
-                    {
-                        if (debug){Puts($"player new cooldown counter in minutes : {counting/60} / {cooldownmin}");}
-                        storedData.playercounter.Remove(player.userID);
-                        storedData.playercounter.Add(player.userID, counting);
-                    }
-                }
-            }
-        }
-/////////// PLAYER SPAWNS HIS MINI RF COPTER //////////////
-//////////////////
-// CHAT SPAWN
-//////////////////
-        [ChatCommand("mymini")]         
+        // Chat spawn
+        [ChatCommand("mymini")]
         private void SpawnMyMinicopterChatCommand(BasePlayer player, string command, string[] args)
         {
+            var t = new TimeSpan();
+            t = DateTime.UtcNow - new DateTime(1970, 1, 1);
+            int secondsSinceEpoch = (int)t.TotalSeconds;
+
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
             {
-                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix, SteamIDIcon);
+                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
                 return;
             }
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
-                Player.Message(player, lang.GetMessage("AlreadyMsg", this, player.UserIDString), Prefix, SteamIDIcon);
+                Player.Message(player, lang.GetMessage("AlreadyMsg", this, player.UserIDString), Prefix);
                 return;
             }
             bool hascooldown = permission.UserHasPermission(player.UserIDString, MinicopterCooldown);
+            if(!useCooldown) hascooldown = false;
+
             float minleft = 0;
             if (hascooldown == true)
             {
                 if (storedData.playercounter.ContainsKey(player.userID) == false)
                 {
-                    storedData.playercounter.Add(player.userID, 0);
+                    storedData.playercounter.Add(player.userID, secondsSinceEpoch);
                 }
                 else
                 {
                     float count = new float();
                     storedData.playercounter.TryGetValue(player.userID, out count);
-                    minleft = cooldownmin - (count/60);
+                    minleft = cooldownmin - ((secondsSinceEpoch - count) / 60);
                     if (debug) Puts($"Player DID NOT reach cooldown return.");
-                    Player.Message(player, $"{lang.GetMessage("CooldownMsg", this, player.UserIDString)} ({minleft} min)", Prefix, SteamIDIcon);     
+                    Player.Message(player, $"{lang.GetMessage("CooldownMsg", this, player.UserIDString)} ({minleft} min)", Prefix);
                     return;
                 }
             }
@@ -219,75 +198,133 @@ namespace Oxide.Plugins
             }
             SpawnMyMinicopter(player);
         }
-///////////////
-// CONSOLE SPAWN
-//////////////////
-        [ConsoleCommand("spawnminicopter")]
-        private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)       
+
+        // Fetch copter
+        [ChatCommand("gmini")]
+        private void GetMyMiniMyCopterChatCommand(BasePlayer player, string command, string[] args)
+        {
+            bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
+            bool canfetch = permission.UserHasPermission(player.UserIDString, MinicopterFetch);
+            if (!(canspawn & canfetch))
+            {
+                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
+                return;
+            }
+            if (storedData.playerminiID.ContainsKey(player.userID) == true)
+            {
+                uint findme;
+                storedData.playerminiID.TryGetValue(player.userID, out findme);
+                var foundit = BaseNetworkable.serverEntities.Find(findme);
+                if (foundit != null)
+                {
+                    var loc = foundit.transform.position.ToString();
+                    var ent = foundit as BaseEntity;
+                    var newLoc = new Vector3((float)(player.transform.position.x + 2f), player.transform.position.y + 2f, (float)(player.transform.position.z + 2f));
+                    foundit.transform.position = newLoc;
+                    PrintMsgL(player, "FoundMsg", newLoc);
+                }
+                return;
+            }
+            else
+            {
+                Player.Message(player, lang.GetMessage("NoFoundMsg", this, player.UserIDString), Prefix);
+                return;
+            }
+            return;
+        }
+
+        // Find copter
+        [ChatCommand("wmini")]
+        private void WhereisMyMiniMyCopterChatCommand(BasePlayer player, string command, string[] args)
+        {
+            bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
+            if (canspawn == false)
+            {
+                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
+                return;
+            }
+            if (storedData.playerminiID.ContainsKey(player.userID) == true)
+            {
+                uint findme;
+                storedData.playerminiID.TryGetValue(player.userID, out findme);
+                var foundit = BaseNetworkable.serverEntities.Find(findme);
+                if (foundit != null)
+                {
+                    var loc = foundit.transform.position.ToString();
+                    PrintMsgL(player, "FoundMsg", loc);
+                }
+                return;
+            }
+            else
+            {
+                Player.Message(player, lang.GetMessage("NoFoundMsg", this, player.UserIDString), Prefix);
+                return;
+            }
+            return;
+        }
+
+        // Console spawn
+        [ConsoleCommand("spawnminicopter"), Permission("myminicopter.admin")]
+        private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
             if (arg.Args.Length == 1)
             {
-                ulong cherche = Convert.ToUInt64(arg.Args[0]);
-                if (cherche == null) return;
-                if (cherche.IsSteamId() == false) return;
-                BasePlayer player = BasePlayer.FindByID(cherche);
+                ulong steamid = Convert.ToUInt64(arg.Args[0]);
+                if (steamid == null) return;
+                if (steamid.IsSteamId() == false) return;
+                BasePlayer player = BasePlayer.FindByID(steamid);
                 SpawnMyMinicopter(player);
             }
-
         }
-///////////////////
-// SPAWN HOOK
-//////////////
+
+        // Spawn hook
         private void SpawnMyMinicopter(BasePlayer player)
         {
             Vector3 position = player.transform.position + (player.transform.forward * 5);
+            position.y = player.transform.position.y + 2f;
             if (position == null) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
             if (vehicleMini == null) return;
             BaseEntity Minientity = vehicleMini as BaseEntity;
             Minientity.OwnerID = player.userID;
             vehicleMini.Spawn();
-            Player.Message(player, $"{lang.GetMessage("SpawnedMsg", this, player.UserIDString)}", Prefix, SteamIDIcon);
+            Player.Message(player, $"{lang.GetMessage("SpawnedMsg", this, player.UserIDString)}", Prefix);
             uint minicopteruint = vehicleMini.net.ID;
-            if (debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {Minientity.OwnerID}");  
+            if (debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {Minientity.OwnerID}");
             storedData.playerminiID.Remove(player.userID);
             storedData.playerminiID.Add(player.userID,minicopteruint);
-            baseplayerminicop.Remove(player);
-            baseplayerminicop.Add(player, vehicleMini);
+            baseplayerminicop.Remove(player.userID);
+            baseplayerminicop.Add(player.userID, vehicleMini);
         }
-//////////////////
-// CHAT DESPAWN
-////////////////
-        [ChatCommand("nomini")]         
+
+        // Chat despawn
+        [ChatCommand("nomini")]
         private void KillMyMinicopterChatCommand(BasePlayer player, string command, string[] args)
         {
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
             {
-                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix, SteamIDIcon);
+                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
                 return;
             }
             KillMyMinicopterPlease(player);
         }
-//////////////////
-// CONSOLE DESPAWN
-//////////////
-        [ConsoleCommand("killminicopter")]
-        private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)       
+
+        // Console despawn
+        [ConsoleCommand("killminicopter"), Permission("myminicopter.admin")]
+        private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
             if (arg.Args.Length == 1)
             {
-                ulong cherche = Convert.ToUInt64(arg.Args[0]);
-                if (cherche == null) return;
-                if (cherche.IsSteamId() == false) return;
-                BasePlayer player = BasePlayer.FindByID(cherche);
+                ulong steamid = Convert.ToUInt64(arg.Args[0]);
+                if (steamid == null) return;
+                if (steamid.IsSteamId() == false) return;
+                BasePlayer player = BasePlayer.FindByID(steamid);
                 KillMyMinicopterPlease(player);
             }
-
         }
-//////////////////////////
-// KILL MINICOPTER HOOK
-///////////////      
+
+        // Kill minicopter hook
         private void KillMyMinicopterPlease(BasePlayer player)
         {
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
@@ -300,22 +337,26 @@ namespace Oxide.Plugins
                     tokill.Kill();
                 }
                 storedData.playerminiID.Remove(player.userID);
-                baseplayerminicop.Remove(player);
+                baseplayerminicop.Remove(player.userID);
+
+                if (storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
+                {
+                    storedData.playercounter.Remove(player.userID);
+                }
             }
         }
-/////////// CHAT MESSAGE TO ONLINE PLAYER with ulong //////////////
 
+        // Chat message to online player with ulong
         private void ChatPlayerOnline(ulong ailldi, string message)
         {
             BasePlayer player = BasePlayer.FindByID(ailldi);
             if (player != null)
             {
-                if (message == "killed") Player.Message(player, lang.GetMessage("KilledMsg", this, player.UserIDString), Prefix, SteamIDIcon);
+                if (message == "killed") Player.Message(player, lang.GetMessage("KilledMsg", this, player.UserIDString), Prefix);
             }
         }
 
-////////////////////// ON KILL - chat owner /////////////////////
-
+        // On kill - chat owner
         void OnEntityKill(BaseNetworkable entity)
         {
             if (entity == null) return;
@@ -335,7 +376,7 @@ namespace Oxide.Plugins
                 {
                     ChatPlayerOnline(item.Key, "killed");
                     BasePlayer player = BasePlayer.FindByID(item.Key);
-                    if (player != null) baseplayerminicop.Remove(player);
+                    if (player != null) baseplayerminicop.Remove(player.userID);
                     todelete = item.Key;
                 }
             }
