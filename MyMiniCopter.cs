@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.1.6")]
+    [Info("My Mini Copter", "RFC1920", "0.1.7")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -205,6 +205,13 @@ namespace Oxide.Plugins
                 PrintMsgL(player, "AlreadyMsg");
                 return;
             }
+
+            if(player.IsBuildingBlocked() & !allowWhenBlocked)
+            {
+                PrintMsgL(player, "BlockedMsg");
+                return;
+            }
+
             bool hascooldown = permission.UserHasPermission(player.UserIDString, MinicopterCooldown);
             if(!useCooldown) hascooldown = false;
 
