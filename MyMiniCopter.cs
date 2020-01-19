@@ -8,7 +8,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.0.9")]
+    [Info("My Mini Copter", "RFC1920", "0.1.0")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -42,6 +42,8 @@ namespace Oxide.Plugins
             }
         }
         private StoredData storedData;
+
+        private bool HasPermission(ConsoleSystem.Arg arg, string permname) => (arg.Connection.player as BasePlayer) == null ? true : permission.UserHasPermission((arg.Connection.player as BasePlayer).UserIDString, permname);
 
         #region loadunload
         void Init()
@@ -345,6 +347,12 @@ namespace Oxide.Plugins
         [ConsoleCommand("spawnminicopter"), Permission("myminicopter.admin")]
         private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
+            if (!HasPermission(arg, MinicopterAdmin))
+            {
+                SendReply(arg, "You don't have access to this command");
+                return;
+            }
+
             if (arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
@@ -359,6 +367,12 @@ namespace Oxide.Plugins
         [ConsoleCommand("killminicopter"), Permission("myminicopter.admin")]
         private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
+            if (!HasPermission(arg, MinicopterAdmin))
+            {
+                SendReply(arg, "You don't have access to this command");
+                return;
+            }
+
             if (arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
@@ -474,6 +488,7 @@ namespace Oxide.Plugins
                 hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
                 return;
             }
+            return;
         }
         #endregion
     }
