@@ -8,15 +8,13 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.0.6")]
+    [Info("My Mini Copter", "RFC1920", "0.0.7")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
     {
-        bool debug = false;
-
+        bool debug = true;
         string Prefix = "[My MiniCopter] :";
-
         const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
 
         private bool ConfigChanged;
@@ -85,7 +83,7 @@ namespace Oxide.Plugins
                 {"NoPermMsg", "You are not allowed to do this."},
                 {"NoFoundMsg", "You do not have an active copter."},
                 {"FoundMsg", "Your copter is located at {0}."},
-                {"CooldownMsg", "You must wait before spawning a new mini copter."},
+                {"CooldownMsg", "You must wait {0} seconds before spawning a new mini copter."},
                 {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."}
             }, this, "en");
 
@@ -97,7 +95,7 @@ namespace Oxide.Plugins
                 {"NoPermMsg", "Vous n'êtes pas autorisé."},
                 {"NoFoundMsg", "Vous n'avez pas de mini hélico actif"},
                 {"FoundMsg", "Votre mini hélico est situé à {0}."},
-                {"CooldownMsg", "Vous devez attendre avant de redemander un mini hélico"},
+                {"CooldownMsg", "Vous devez attendre {0} secondes avant de créer un nouveau mini hélico."},
                 {"BlockedMsg", "Vous ne pouvez pas faire apparaître ou aller chercher votre hélico lorsque la construction est bloquée."}
             }, this, "fr");
         }
@@ -126,7 +124,7 @@ namespace Oxide.Plugins
             BasePlayer player = BasePlayer.FindByID(ailldi);
             if (player != null)
             {
-                if (message == "killed") Player.Message(player, lang.GetMessage("KilledMsg", this, player.UserIDString), Prefix);
+                if (message == "killed") PrintMsgL(player, "KilledMsg");
             }
         }
         #endregion
@@ -185,12 +183,12 @@ namespace Oxide.Plugins
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
             {
-                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "NoPermMsg");
                 return;
             }
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
-                Player.Message(player, lang.GetMessage("AlreadyMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "AlreadyMsg");
                 return;
             }
             bool hascooldown = permission.UserHasPermission(player.UserIDString, MinicopterCooldown);
@@ -222,7 +220,7 @@ namespace Oxide.Plugins
                         if(secsleft > 0)
                         {
                             if (debug) Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
-                            Player.Message(player, $"{lang.GetMessage("CooldownMsg", this, player.UserIDString)} ({secsleft.ToString()} secs)", Prefix);
+                            PrintMsgL(player, "CooldownMsg", secsleft.ToString());
                             return;
                         }
                     }
@@ -245,7 +243,7 @@ namespace Oxide.Plugins
         {
             if(player.IsBuildingBlocked() & !allowWhenBlocked)
             {
-                Player.Message(player, $"{lang.GetMessage("BlockedMsg", this, player.UserIDString)}", Prefix);
+                PrintMsgL(player, "BlockedMsg");
                 return;
             }
 
@@ -253,7 +251,7 @@ namespace Oxide.Plugins
             bool canfetch = permission.UserHasPermission(player.UserIDString, MinicopterFetch);
             if (!(canspawn & canfetch))
             {
-                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "NoPermMsg");
                 return;
             }
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
@@ -271,7 +269,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                Player.Message(player, lang.GetMessage("NoFoundMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "NoFoundMsg");
                 return;
             }
             return;
@@ -284,7 +282,7 @@ namespace Oxide.Plugins
             bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (canspawn == false)
             {
-                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "NoPermMsg");
                 return;
             }
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
@@ -301,7 +299,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                Player.Message(player, lang.GetMessage("NoFoundMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "NoFoundMsg");
                 return;
             }
             return;
@@ -314,7 +312,7 @@ namespace Oxide.Plugins
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
             {
-                Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix);
+                PrintMsgL(player, "NoPermMsg");
                 return;
             }
             KillMyMinicopterPlease(player);
@@ -357,7 +355,7 @@ namespace Oxide.Plugins
         {
             if(player.IsBuildingBlocked() & !allowWhenBlocked)
             {
-                Player.Message(player, $"{lang.GetMessage("BlockedMsg", this, player.UserIDString)}", Prefix);
+                PrintMsgL(player, "BlockedMsg");
                 return;
             }
 
@@ -376,7 +374,7 @@ namespace Oxide.Plugins
             }
             vehicleMini.Spawn();
 
-            Player.Message(player, $"{lang.GetMessage("SpawnedMsg", this, player.UserIDString)}", Prefix);
+            PrintMsgL(player, "SpawnedMsg");
             uint minicopteruint = vehicleMini.net.ID;
             if (debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {miniEntity.OwnerID}");
             storedData.playerminiID.Remove(player.userID);
