@@ -7,7 +7,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "BuzZ[PHOQUE]", "0.0.1")]
+    [Info("My Mini Copter", "BuzZ[PHOQUE]", "0.0.2")]
     [Description("Spawn a Mini Helicopter")]
 
 /*======================================================================================================================= 
@@ -16,7 +16,7 @@ namespace Oxide.Plugins
 *   08 february 2019
 *   chat commands : /mymini    /nomini
 *
-*   0.0.1   20181123    creation
+*   0.0.1   20190208    creation
 *
 *
 *=======================================================================================================================*/
@@ -33,10 +33,10 @@ namespace Oxide.Plugins
         private bool ConfigChanged;
         const string MinicopterSpawn = "myminicopter.spawn"; 
         const string MinicopterCooldown = "myminicopter.cooldown"; 
-        //bool normalch47kill;
-        //bool withoutdebris;
-        float cooldownmin = 60;
-        float trigger = 60;
+
+
+        float cooldownmin = 60f;
+        float trigger = 60f;
 		private Timer clock;
 //BaseHelicopterVehicle
 
@@ -117,6 +117,7 @@ namespace Oxide.Plugins
         {
             Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :"));                       // CHAT PLUGIN PREFIX
             SteamIDIcon = Convert.ToUInt64(GetConfig("Chat Settings", "SteamIDIcon", "76561198059533272"));        // SteamID FOR PLUGIN ICON - STEAM PROFILE CREATED FOR THIS PLUGIN / NONE YET /
+            cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));      
 
             if (!ConfigChanged) return;
             SaveConfig();
