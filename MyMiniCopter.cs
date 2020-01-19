@@ -7,7 +7,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "BuzZ[PHOQUE]", "0.0.2")]
+    [Info("My Mini Copter", "BuzZ[PHOQUE]", "0.0.3")]
     [Description("Spawn a Mini Helicopter")]
 
 /*======================================================================================================================= 
@@ -18,7 +18,7 @@ namespace Oxide.Plugins
 *
 *   0.0.1   20190208    creation
 *
-*
+*   0.0.3               console commands spawnminicopter .userID / killminicopter .userID
 *=======================================================================================================================*/
 
     public class MyMiniCopter : RustPlugin
@@ -175,9 +175,11 @@ namespace Oxide.Plugins
             }
         }
 /////////// PLAYER SPAWNS HIS MINI RF COPTER //////////////
-
+//////////////////
+// CHAT SPAWN
+//////////////////
         [ChatCommand("mymini")]         
-        private void SpawnMyMinicopter(BasePlayer player, string command, string[] args)
+        private void SpawnMyMinicopterChatCommand(BasePlayer player, string command, string[] args)
         {
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
@@ -215,6 +217,29 @@ namespace Oxide.Plugins
                     storedData.playercounter.Remove(player.userID);
                 }
             }
+            SpawnMyMinicopter(player);
+        }
+///////////////
+// CONSOLE SPAWN
+//////////////////
+        [ConsoleCommand("spawnminicopter")]
+        private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)       
+        {
+            if (arg.Args.Length == 1)
+            {
+                ulong cherche = Convert.ToUInt64(arg.Args[0]);
+                if (cherche == null) return;
+                if (cherche.IsSteamId() == false) return;
+                BasePlayer player = BasePlayer.FindByID(cherche);
+                SpawnMyMinicopter(player);
+            }
+
+        }
+///////////////////
+// SPAWN HOOK
+//////////////
+        private void SpawnMyMinicopter(BasePlayer player)
+        {
             Vector3 position = player.transform.position + (player.transform.forward * 5);
             if (position == null) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
@@ -230,9 +255,11 @@ namespace Oxide.Plugins
             baseplayerminicop.Remove(player);
             baseplayerminicop.Add(player, vehicleMini);
         }
-
+//////////////////
+// CHAT DESPAWN
+////////////////
         [ChatCommand("nomini")]         
-        private void KillMyMinicopterPlease(BasePlayer player, string command, string[] args)
+        private void KillMyMinicopterChatCommand(BasePlayer player, string command, string[] args)
         {
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
@@ -240,6 +267,29 @@ namespace Oxide.Plugins
                 Player.Message(player, lang.GetMessage("NoPermMsg", this, player.UserIDString), Prefix, SteamIDIcon);
                 return;
             }
+            KillMyMinicopterPlease(player);
+        }
+//////////////////
+// CONSOLE DESPAWN
+//////////////
+        [ConsoleCommand("killminicopter")]
+        private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)       
+        {
+            if (arg.Args.Length == 1)
+            {
+                ulong cherche = Convert.ToUInt64(arg.Args[0]);
+                if (cherche == null) return;
+                if (cherche.IsSteamId() == false) return;
+                BasePlayer player = BasePlayer.FindByID(cherche);
+                KillMyMinicopterPlease(player);
+            }
+
+        }
+//////////////////////////
+// KILL MINICOPTER HOOK
+///////////////      
+        private void KillMyMinicopterPlease(BasePlayer player)
+        {
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 uint deluint;
@@ -253,20 +303,14 @@ namespace Oxide.Plugins
                 baseplayerminicop.Remove(player);
             }
         }
-
 /////////// CHAT MESSAGE TO ONLINE PLAYER with ulong //////////////
 
         private void ChatPlayerOnline(ulong ailldi, string message)
         {
-            foreach (BasePlayer player in BasePlayer.activePlayerList.ToList())
+            BasePlayer player = BasePlayer.FindByID(ailldi);
+            if (player != null)
             {
-                if (player.userID == ailldi)
-                {
-                    if (message == "killed")
-                    {
-                        Player.Message(player, lang.GetMessage("KilledMsg", this, player.UserIDString), Prefix, SteamIDIcon);
-                    }
-                }
+                if (message == "killed") Player.Message(player, lang.GetMessage("KilledMsg", this, player.UserIDString), Prefix, SteamIDIcon);
             }
         }
 
@@ -290,13 +334,8 @@ namespace Oxide.Plugins
                 if (item.Value == entity.net.ID)
                 {
                     ChatPlayerOnline(item.Key, "killed");
-                    foreach (BasePlayer player in BasePlayer.activePlayerList.ToList())
-                    {
-                        if (player.userID == item.Key)
-                        {
-                            baseplayerminicop.Remove(player);
-                        }                       
-                    }
+                    BasePlayer player = BasePlayer.FindByID(item.Key);
+                    if (player != null) baseplayerminicop.Remove(player);
                     todelete = item.Key;
                 }
             }
