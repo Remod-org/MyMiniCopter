@@ -8,7 +8,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.0.4")]
+    [Info("My Mini Copter", "RFC1920", "0.0.5")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -25,17 +25,19 @@ namespace Oxide.Plugins
         const string MinicopterFetch = "myminicopter.fetch";
         const string MinicopterAdmin = "myminicopter.admin";
         const string MinicopterCooldown = "myminicopter.cooldown";
+        const string MinicopterUnlimited = "myminicopter.unlimited";
 
-        float cooldownmin = 60f;
+        double cooldownmin = 60;
         float trigger = 60f;
         private Timer clock;
 
         public Dictionary<ulong, BaseVehicle > baseplayerminicop = new Dictionary<ulong, BaseVehicle>();
+        private static DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
 
         class StoredData
         {
             public Dictionary<ulong, uint> playerminiID = new Dictionary<ulong, uint>();
-            public Dictionary<ulong, float> playercounter = new Dictionary<ulong, float>();
+            public Dictionary<ulong, double> playercounter = new Dictionary<ulong, double>();
             public StoredData()
             {
             }
@@ -50,12 +52,13 @@ namespace Oxide.Plugins
             permission.RegisterPermission(MinicopterFetch, this);
             permission.RegisterPermission(MinicopterAdmin, this);
             permission.RegisterPermission(MinicopterCooldown, this);
+            permission.RegisterPermission(MinicopterUnlimited, this);
             storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
         }
 
         void OnServerInitialized()
         {
-            if (((float) (cooldownmin * 60) <= 120) & useCooldown)
+            if (((cooldownmin * 60) <= 120) & useCooldown)
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
                 return;
@@ -79,7 +82,7 @@ namespace Oxide.Plugins
                 {"NoPermMsg", "You are not allowed to do this."},
                 {"NoFoundMsg", "You do not have an active copter."},
                 {"FoundMsg", "Your copter is located at {0}."},
-                {"CooldownMsg", "You must wait before a new mini copter"},
+                {"CooldownMsg", "You must wait before spawning a new mini copter"},
             }, this, "en");
 
             lang.RegisterMessages(new Dictionary<string, string>
@@ -148,15 +151,19 @@ namespace Oxide.Plugins
             }
             return value;
         }
+
+        void SaveData()
+        {
+            // Save the data file as we add/remove minicopters.
+            Interface.Oxide.DataFileSystem.WriteObject(Name, storedData);
+        }
         #endregion
 
         // Chat spawn
         [ChatCommand("mymini")]
         private void SpawnMyMinicopterChatCommand(BasePlayer player, string command, string[] args)
         {
-            var t = new TimeSpan();
-            t = DateTime.UtcNow - new DateTime(1970, 1, 1);
-            int secondsSinceEpoch = (int)t.TotalSeconds;
+            double secondsSinceEpoch = DateTime.UtcNow.Subtract(epoch).TotalSeconds;
 
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             if (isspawner == false)
@@ -172,21 +179,36 @@ namespace Oxide.Plugins
             bool hascooldown = permission.UserHasPermission(player.UserIDString, MinicopterCooldown);
             if(!useCooldown) hascooldown = false;
 
-            float minleft = 0;
+            int secsleft = 0;
             if (hascooldown == true)
             {
                 if (storedData.playercounter.ContainsKey(player.userID) == false)
                 {
                     storedData.playercounter.Add(player.userID, secondsSinceEpoch);
+                    SaveData();
                 }
                 else
                 {
-                    float count = new float();
+                    double count;
                     storedData.playercounter.TryGetValue(player.userID, out count);
-                    minleft = cooldownmin - ((secondsSinceEpoch - count) / 60);
-                    if (debug) Puts($"Player DID NOT reach cooldown return.");
-                    Player.Message(player, $"{lang.GetMessage("CooldownMsg", this, player.UserIDString)} ({minleft} min)", Prefix);
-                    return;
+
+                    if((secondsSinceEpoch - count) > (cooldownmin * 60))
+                    {
+                        if (debug) Puts($"Player reached cooldown.  Clearing data.");
+                        storedData.playercounter.Remove(player.userID);
+                        SaveData();
+                    }
+                    else
+                    {
+                        secsleft = Math.Abs((int)((cooldownmin * 60) - (secondsSinceEpoch - count)));
+
+                        if(secsleft > 0)
+                        {
+                            if (debug) Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
+                            Player.Message(player, $"{lang.GetMessage("CooldownMsg", this, player.UserIDString)} ({secsleft.ToString()} secs)", Prefix);
+                            return;
+                        }
+                    }
                 }
             }
             else
@@ -194,6 +216,7 @@ namespace Oxide.Plugins
                 if (storedData.playercounter.ContainsKey(player.userID))
                 {
                     storedData.playercounter.Remove(player.userID);
+                    SaveData();
                 }
             }
             SpawnMyMinicopter(player);
@@ -285,16 +308,28 @@ namespace Oxide.Plugins
             if (position == null) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
             if (vehicleMini == null) return;
-            BaseEntity Minientity = vehicleMini as BaseEntity;
-            Minientity.OwnerID = player.userID;
+            BaseEntity miniEntity = vehicleMini as BaseEntity;
+            MiniCopter miniCopter = vehicleMini as MiniCopter;
+            miniEntity.OwnerID = player.userID;
+
+            if(permission.UserHasPermission(player.UserIDString, MinicopterUnlimited))
+            {
+                miniCopter.fuelPerSec = 0f;
+            }
+
             vehicleMini.Spawn();
+
             Player.Message(player, $"{lang.GetMessage("SpawnedMsg", this, player.UserIDString)}", Prefix);
             uint minicopteruint = vehicleMini.net.ID;
-            if (debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {Minientity.OwnerID}");
+            if (debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {miniEntity.OwnerID}");
             storedData.playerminiID.Remove(player.userID);
             storedData.playerminiID.Add(player.userID,minicopteruint);
+            SaveData();
             baseplayerminicop.Remove(player.userID);
             baseplayerminicop.Add(player.userID, vehicleMini);
+
+            miniEntity = null;
+            miniCopter = null;
         }
 
         // Chat despawn
@@ -343,6 +378,7 @@ namespace Oxide.Plugins
                 {
                     storedData.playercounter.Remove(player.userID);
                 }
+                SaveData();
             }
         }
 
@@ -383,6 +419,7 @@ namespace Oxide.Plugins
             if (todelete != null)
             {
                 storedData.playerminiID.Remove(todelete);
+                SaveData();
             }
         }
     }
