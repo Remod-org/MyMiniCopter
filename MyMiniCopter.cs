@@ -8,7 +8,7 @@ using Oxide.Game.Rust.Cui;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.0.8")]
+    [Info("My Mini Copter", "RFC1920", "0.0.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -261,6 +261,27 @@ namespace Oxide.Plugins
                 var foundit = BaseNetworkable.serverEntities.Find(findme);
                 if (foundit != null)
                 {
+                    // Check for and dismount all players before moving the copter
+                    var ent = BaseNetworkable.serverEntities.Find(findme);
+                    var copter = ent as BaseVehicle;
+                    BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
+                    for (int i = 0; i < (int)mountpoints.Length; i++)
+                    {
+                        BaseVehicle.MountPointInfo mountPointInfo = mountpoints[i];
+                        if (mountPointInfo.mountable != null)
+                        {
+                            BasePlayer mounted = mountPointInfo.mountable.GetMounted();
+                            if (mounted)
+                            {
+                                Vector3 player_pos = (mounted.transform.position);
+                                mounted.DismountObject();
+                                mounted.MovePosition(player_pos);
+                                mounted.SendNetworkUpdateImmediate(false);
+                                mounted.ClientRPCPlayer(null, player, "ForcePositionTo", player_pos);
+                                mountPointInfo.mountable._mounted = null;
+                            }
+                        }
+                    }
                     var newLoc = new Vector3((float)(player.transform.position.x + 2f), player.transform.position.y + 2f, (float)(player.transform.position.z + 2f));
                     foundit.transform.position = newLoc;
                     PrintMsgL(player, "FoundMsg", newLoc);
