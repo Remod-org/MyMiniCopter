@@ -54,8 +54,14 @@ no return value;
       }
 }
 ```
+Global:
 
-Set "Value in meters" to 0 to disable the requirement (default).
+- "Allow spawn when building blocked": set to true to allow player to use /mymini while building blocked
+- "Allow unlimited to use fuel tank": If the player has the unlimited permissions, they will not be able to use the fuel tank if this is set.  1LGF is added so the copter will start.
+- "Destroy copter on player sleep": If this is true, the player's copter will be destroyed when they disconnect.  It should check that no one is mounted to the copter.
+- "Standard fuel consumption per second": How much fuel does the copter use (assuming player does NOT have the unlimited permission).  0.25/S is the default.
+
+Set "Value in meters" for gmini or nomini to 0 to disable the requirement (default).
 
 ## Future Plans
 
