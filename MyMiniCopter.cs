@@ -29,6 +29,7 @@ namespace Oxide.Plugins
         private float gminidistance = 0f;
         const string MinicopterSpawn = "myminicopter.spawn";
         const string MinicopterFetch = "myminicopter.fetch";
+        const string MinicopterWhere = "myminicopter.where";
         const string MinicopterAdmin = "myminicopter.admin";
         const string MinicopterCooldown = "myminicopter.cooldown";
         const string MinicopterUnlimited = "myminicopter.unlimited";
@@ -59,6 +60,7 @@ namespace Oxide.Plugins
             LoadVariables();
             permission.RegisterPermission(MinicopterSpawn, this);
             permission.RegisterPermission(MinicopterFetch, this);
+            permission.RegisterPermission(MinicopterWhere, this);
             permission.RegisterPermission(MinicopterAdmin, this);
             permission.RegisterPermission(MinicopterCooldown, this);
             permission.RegisterPermission(MinicopterUnlimited, this);
@@ -293,8 +295,9 @@ namespace Oxide.Plugins
                 var foundit = BaseNetworkable.serverEntities.Find(findme);
                 if(foundit != null)
                 {
-                    // Check for and dismount all players before moving the copter
                     var ent = BaseNetworkable.serverEntities.Find(findme);
+
+                    // Distance check
                     if(gminidistance > 0f)
                     {
                         if(Vector3.Distance(player.transform.position, ent.transform.position) > gminidistance)
@@ -304,6 +307,7 @@ namespace Oxide.Plugins
                         }
                     }
 
+                    // Check for and dismount all players before moving the copter
                     var copter = ent as BaseVehicle;
                     BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
                     for(int i = 0; i < (int)mountpoints.Length; i++)
@@ -314,7 +318,7 @@ namespace Oxide.Plugins
                             BasePlayer mounted = mountPointInfo.mountable.GetMounted();
                             if(mounted)
                             {
-                                Vector3 player_pos = (mounted.transform.position);
+                                Vector3 player_pos = mounted.transform.position + new Vector3(1,0,1);
                                 mounted.DismountObject();
                                 mounted.MovePosition(player_pos);
                                 mounted.SendNetworkUpdateImmediate(false);
@@ -341,7 +345,7 @@ namespace Oxide.Plugins
         [ChatCommand("wmini")]
         private void WhereisMyMiniMyCopterChatCommand(BasePlayer player, string command, string[] args)
         {
-            bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
+            bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterWhere);
             if(canspawn == false)
             {
                 PrintMsgL(player, "NoPermMsg");

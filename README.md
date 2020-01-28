@@ -3,8 +3,9 @@ A simple plugin to spawn a mini copter for yourself. Limits to one mini copter p
 
 ## Permissions
 
-- `myminicopter.spawn` -- Allows player to spawn a mini copter
-- `myminicopter.fetch`    -- Allows player to retrieve their mini copter
+- `myminicopter.spawn` -- Allows player to spawn a mini copter (/mymini)
+- `myminicopter.fetch`    -- Allows player to use /gmini retrieve their mini copter
+- `myminicopter.where`    -- Allows player to use /wmini to locate their mini copter (NEW!)
 - `myminicopter.admin`  -- Allows an admin to run console commands (may change)
 - `myminicopter.cooldown` -- Adds a cooldown to player
 - `myminicopter.unlimited` -- Player can fly without fuel usage (will need to add at least 1 LGF unless "Allow unlimited to use fuel tank" is set to false)
@@ -13,8 +14,8 @@ A simple plugin to spawn a mini copter for yourself. Limits to one mini copter p
 
 - `/mymini` -- Spawn a mini copter
 - `/nomini` -- Despawn mini copter
-- `/wmini`   -- Find mini copter
-- `/gmini`    -- Get/fetch mini copter
+- `/wmini   -- Find mini copter
+- `/gmini   -- Get/fetch mini copter
 
 ## Console Commands
 
@@ -65,7 +66,5 @@ Set "Value in meters" for gmini or nomini to 0 to disable the requirement (defau
 
 ## Future Plans
 
-* bomb drop
 * health workaround
-* spawner
 * check console commands input/NRE
