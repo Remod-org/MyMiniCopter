@@ -10,7 +10,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.0")]
+    [Info("My Mini Copter", "RFC1920", "0.2.1")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -548,7 +548,7 @@ namespace Oxide.Plugins
                 var tokill = BaseNetworkable.serverEntities.Find(deluint);
                 if(tokill != null)
                 {
-                    tokill.Kill();
+                    tokill.Kill(BaseNetworkable.DestroyMode.Gib);
                 }
                 storedData.playerminiID.Remove(player.userID);
                 baseplayerminicop.Remove(player.userID);
