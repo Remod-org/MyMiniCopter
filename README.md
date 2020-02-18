@@ -1,5 +1,9 @@
-# MyMiniCopter
+# MyMiniCopter (Remod version)
 A simple plugin to spawn a mini copter for yourself. Limits to one mini copter per player with optional cooldown (using permission).
+
+[Download](https://code.remod.org/MyMiniCopter.cs)
+
+![](https://www.remod.org/sites/default/files/inline-images/mincopter.jpg)
 
 ## Permissions
 
