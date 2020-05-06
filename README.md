@@ -1,7 +1,5 @@
-# MyMiniCopter (Remod version)
+# MyMiniCopter
 A simple plugin to spawn a mini copter for yourself. Limits to one mini copter per player with optional cooldown (using permission).
-
-[Download](https://code.remod.org/MyMiniCopter.cs)
 
 ![](https://www.remod.org/sites/default/files/inline-images/mincopter.jpg)
 
@@ -48,8 +46,13 @@ no return value;
       "Global": {
           "Allow spawn when building blocked": false,
           "Allow unlimited to use fuel tank": false,
+		  "allowDriverDismountWhileFlying": true,
+		  "allowPassengerDismountWhileFlying": true,
           "Destroy copter on player sleep": false,
           "Standard fuel consumption per second": 0.25
+      },
+      "Maximum height for dismount": {
+          "Value in meters": "7"
       },
       "Minimum Distance for /gmini": {
           "Value in meters": "0"
