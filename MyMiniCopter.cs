@@ -5,8 +5,6 @@ using Oxide.Core;
 using Convert = System.Convert;
 using System;
 using System.Linq;
-using Oxide.Game.Rust.Cui;
-using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
@@ -39,8 +37,6 @@ namespace Oxide.Plugins
 
         static LayerMask layerMask = LayerMask.GetMask("Terrain", "World", "Construction");
         double cooldownmin = 60;
-        float trigger = 60f;
-        private Timer clock;
 
         private Dictionary<ulong, ulong> currentMounts = new Dictionary<ulong, ulong>();
         private static DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
@@ -58,7 +54,22 @@ namespace Oxide.Plugins
         private bool HasPermission(ConsoleSystem.Arg arg, string permname) => (arg.Connection.player as BasePlayer) == null ? true : permission.UserHasPermission((arg.Connection.player as BasePlayer).UserIDString, permname);
 
         #region loadunload
-        //void Init()
+        void OnServerInitialized()
+        {
+            if(((cooldownmin * 60) <= 120) & useCooldown)
+            {
+                PrintError("Please set a longer cooldown time. Minimum is 2 min.");
+                cooldownmin = 2;
+                return;
+            }
+        }
+
+        void OnNewSave()
+        {
+            storedData = null;
+            SaveData();
+        }
+
         void Loaded()
         {
             LoadVariables();
@@ -69,16 +80,6 @@ namespace Oxide.Plugins
             permission.RegisterPermission(MinicopterCooldown, this);
             permission.RegisterPermission(MinicopterUnlimited, this);
             storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
-        }
-
-        void OnServerInitialized()
-        {
-            if(((cooldownmin * 60) <= 120) & useCooldown)
-            {
-                PrintError("Please set a longer cooldown time. Minimum is 2 min.");
-                cooldownmin = 2;
-                return;
-            }
         }
 
         void Unload()
