@@ -4,10 +4,13 @@ using System.Collections.Generic;
 using Oxide.Core;
 using Convert = System.Convert;
 using System;
+using System.Linq;
+using Oxide.Game.Rust.Cui;
+using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.2")]
+    [Info("My Mini Copter", "RFC1920", "0.2.3")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -15,6 +18,7 @@ namespace Oxide.Plugins
         string Prefix = "[My MiniCopter] :";
         const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
 
+        private bool ConfigChanged;
         private bool useCooldown = true;
         private bool copterDecay = false;
         private bool allowWhenBlocked = false;
@@ -38,7 +42,7 @@ namespace Oxide.Plugins
         float trigger = 60f;
         private Timer clock;
 
-        public Dictionary<ulong, BaseVehicle > baseplayerminicop = new Dictionary<ulong, BaseVehicle>();
+        private Dictionary<ulong, ulong> currentMounts = new Dictionary<ulong, ulong>();
         private static DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
 
         class StoredData
@@ -50,9 +54,11 @@ namespace Oxide.Plugins
             }
         }
         private StoredData storedData;
-        private bool HasPermission(ConsoleSystem.Arg arg, string permname) => permission.UserHasPermission(arg?.Player().UserIDString, permname) ? true : false;
+
+        private bool HasPermission(ConsoleSystem.Arg arg, string permname) => (arg.Connection.player as BasePlayer) == null ? true : permission.UserHasPermission((arg.Connection.player as BasePlayer).UserIDString, permname);
 
         #region loadunload
+        //void Init()
         void Loaded()
         {
             LoadVariables();
@@ -79,7 +85,6 @@ namespace Oxide.Plugins
         {
             SaveData();
             storedData = null;
-            baseplayerminicop = null;
         }
         #endregion
 
@@ -166,7 +171,9 @@ namespace Oxide.Plugins
             allowPassengerDismountWhileFlying = Convert.ToBoolean(GetConfig("Global", "Allow passenger dismount while flying", true));
             minDismountHeight = Convert.ToSingle(GetConfig("Maximum height for dismount", "Value in meters", "7"));
 
+            if(!ConfigChanged) return;
             SaveConfig();
+            ConfigChanged = false;
         }
 
         private object GetConfig(string menu, string datavalue, object defaultValue)
@@ -176,14 +183,16 @@ namespace Oxide.Plugins
             {
                 data = new Dictionary<string, object>();
                 Config[menu] = data;
+                ConfigChanged = true;
             }
-            object cfgvalue;
-            if(!data.TryGetValue(datavalue, out cfgvalue))
+            object value;
+            if(!data.TryGetValue(datavalue, out value))
             {
-                cfgvalue = defaultValue;
-                data[datavalue] = cfgvalue;
+                value = defaultValue;
+                data[datavalue] = value;
+                ConfigChanged = true;
             }
-            return cfgvalue;
+            return value;
         }
 
         void SaveData()
@@ -292,10 +301,12 @@ namespace Oxide.Plugins
                 var foundit = BaseNetworkable.serverEntities.Find(findme);
                 if(foundit != null)
                 {
+                    var ent = BaseNetworkable.serverEntities.Find(findme);
+
                     // Distance check
                     if(gminidistance > 0f)
                     {
-                        if(Vector3.Distance(player.transform.position, foundit.transform.position) > gminidistance)
+                        if(Vector3.Distance(player.transform.position, ent.transform.position) > gminidistance)
                         {
                             PrintMsgL(player, "DistanceMsg", gminidistance);
                             return;
@@ -303,7 +314,7 @@ namespace Oxide.Plugins
                     }
 
                     // Check for and dismount all players before moving the copter
-                    var copter = foundit as BaseVehicle;
+                    var copter = ent as BaseVehicle;
                     BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
                     for(int i = 0; i < (int)mountpoints.Length; i++)
                     {
@@ -348,9 +359,10 @@ namespace Oxide.Plugins
             if(storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 uint findme;
-                if(storedData.playerminiID.TryGetValue(player.userID, out findme))
+                storedData.playerminiID.TryGetValue(player.userID, out findme);
+                var foundit = BaseNetworkable.serverEntities.Find(findme);
+                if(foundit != null)
                 {
-                    var foundit = BaseNetworkable.serverEntities.Find(findme);
                     var loc = foundit.transform.position.ToString();
                     PrintMsgL(player, "FoundMsg", loc);
                 }
@@ -403,14 +415,13 @@ namespace Oxide.Plugins
 
             if(arg.Args.Length == 1)
             {
-                ulong steamid;
-                if (ulong.TryParse(arg.Args[0], out steamid))
+                ulong steamid = Convert.ToUInt64(arg.Args[0]);
+                if(steamid == 0) return;
+                if(steamid.IsSteamId() == false) return;
+                BasePlayer player = BasePlayer.FindByID(steamid);
+                if(player != null)
                 {
-                    BasePlayer player = BasePlayer.FindByID(steamid);
-                    if(player != null)
-                    {
-                        SpawnMyMinicopter(player);
-                    }
+                    SpawnMyMinicopter(player);
                 }
             }
         }
@@ -441,6 +452,7 @@ namespace Oxide.Plugins
             if(arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
+                if(steamid == 0) return;
                 if(steamid.IsSteamId() == false) return;
                 BasePlayer player = BasePlayer.FindByID(steamid);
                 if(player != null)
@@ -501,10 +513,10 @@ namespace Oxide.Plugins
             Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {miniEntity.OwnerID}");
 #endif
             storedData.playerminiID.Remove(player.userID);
+            var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+            currentMounts.Remove(myKey);
             storedData.playerminiID.Add(player.userID,minicopteruint);
             SaveData();
-            baseplayerminicop.Remove(player.userID);
-            baseplayerminicop.Add(player.userID, vehicleMini);
 
             miniEntity = null;
             miniCopter = null;
@@ -536,13 +548,15 @@ namespace Oxide.Plugins
             if(storedData.playerminiID.ContainsKey(player.userID) == true && foundcopter)
             {
                 uint deluint;
-                if(storedData.playerminiID.TryGetValue(player.userID, out deluint))
+                storedData.playerminiID.TryGetValue(player.userID, out deluint);
+                var tokill = BaseNetworkable.serverEntities.Find(deluint);
+                if(tokill != null)
                 {
-                    var tokill = BaseNetworkable.serverEntities.Find(deluint);
                     tokill.Kill(BaseNetworkable.DestroyMode.Gib);
                 }
                 storedData.playerminiID.Remove(player.userID);
-                baseplayerminicop.Remove(player.userID);
+                var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+                currentMounts.Remove(myKey);
 
                 if(storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
                 {
@@ -561,14 +575,146 @@ namespace Oxide.Plugins
         #endregion
 
         #region hooks
+        object CanMountEntity(BasePlayer player, BaseMountable mountable)
+        {
+            if(player == null) return null;
+            var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
+            if (mini != null)
+            {
+#if DEBUG
+                Puts($"Player {player.userID.ToString()} wants to mount seat id {mountable.net.ID.ToString()}");
+#endif
+                var id = mountable.net.ID - 2;
+                for (int i = 0; i < 3; i++)
+                {
+                    // Find copter and seats in storedData
+#if DEBUG
+                    Puts($"  Is this our copter with ID {id.ToString()}?");
+#endif
+                    if (storedData.playerminiID.ContainsValue(id))
+                    {
+#if DEBUG
+                        Puts("    yes, it is...");
+#endif
+                        if (currentMounts.ContainsValue(player.userID))
+                        {
+                            if (!player.GetMounted())
+                            {
+                                var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+                                currentMounts.Remove(myKey);
+                            }
+                            return false;
+                        }
+                    }
+                    id++;
+                }
+            }
+            return null;
+        }
+
+        void OnEntityMounted(BaseMountable mountable, BasePlayer player)
+        {
+            var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
+            if (mini != null)
+            {
+                Puts($"Player {player.userID.ToString()} mounted seat id {mountable.net.ID.ToString()}");
+                // Check this seat's ID to see if the copter is one of ours
+                uint id = mountable.net.ID - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
+                for (int i = 0; i < 3; i++)
+                {
+                    // Find copter in storedData
+                    Puts($"Is this our copter with ID {id.ToString()}?");
+                    if (storedData.playerminiID.ContainsValue(id))
+                    {
+                        Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+                        currentMounts.Remove(mountable.net.ID);
+                        Puts($"Adding {player.displayName}'s ID {player.userID} to currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+                        currentMounts.Add(mountable.net.ID, player.userID);
+                        break;
+                    }
+                    id++;
+                }
+            }
+        }
+
+        object CanDismountEntity(BasePlayer player, BaseMountable mountable)
+        {
+            if (player == null) return null;
+            var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
+            if (mini != null)
+            {
+                if (!Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), minDismountHeight, layerMask))
+                {
+                    // Is this one of ours?
+                    if (storedData.playerminiID.ContainsValue(mountable.net.ID - 1))
+                    {
+                        if (!allowDriverDismountWhileFlying)
+                        {
+#if DEBUG
+                            Puts("DENY PILOT DISMOUNT");
+#endif
+                            return false;
+                        }
+                        var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+                        currentMounts.Remove(myKey);
+                    }
+                    else if (storedData.playerminiID.ContainsValue(mountable.net.ID - 2))
+                    {
+                        if (!allowPassengerDismountWhileFlying)
+                        {
+#if DEBUG
+                            Puts("DENY PASSENGER DISMOUNT");
+#endif
+                            return false;
+                        }
+                        var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+                        currentMounts.Remove(myKey);
+                    }
+                }
+                return null;
+            }
+            return null;
+        }
+
+        void OnEntityDismounted(BaseMountable mountable, BasePlayer player)
+        {
+            var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
+            if (mini != null)
+            {
+#if DEBUG
+                Puts($"Player {player.userID.ToString()} dismounted seat id {mountable.net.ID.ToString()}");
+#endif
+                var id = mountable.net.ID - 2;
+                for (int i = 0; i < 3; i++)
+                {
+                    // Find copter and seats in storedData
+#if DEBUG
+                    Puts($"Is this our copter with ID {id.ToString()}?");
+#endif
+                    if (storedData.playerminiID.ContainsValue(id))
+                    {
+#if DEBUG
+                        Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+#endif
+                        currentMounts.Remove(mountable.net.ID);
+                        break;
+                    }
+                    id++;
+                }
+            }
+            var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+            currentMounts.Remove(myKey);
+        }
+
         // On kill - tell owner
         void OnEntityKill(BaseNetworkable entity)
         {
             if(entity == null) return;
+            if(entity.net.ID == 0)return;
             MiniCopter check = entity as MiniCopter;
             if(check == null) return;
             if(storedData.playerminiID == null) return;
-            ulong todelete = 0;
+            ulong todelete = new ulong();
             if(storedData.playerminiID.ContainsValue(entity.net.ID) == false)
             {
 #if DEBUG
@@ -582,13 +728,15 @@ namespace Oxide.Plugins
                 {
                     ChatPlayerOnline(item.Key, "killed");
                     BasePlayer player = BasePlayer.FindByID(item.Key);
-                    if(player != null) baseplayerminicop.Remove(player.userID);
                     todelete = item.Key;
                 }
             }
-            if(todelete > 0)
+            if(todelete != 0)
             {
                 storedData.playerminiID.Remove(todelete);
+                currentMounts.Remove(entity.net.ID);
+                currentMounts.Remove(entity.net.ID + 1);
+                currentMounts.Remove(entity.net.ID + 2);
                 SaveData();
             }
         }
@@ -628,14 +776,11 @@ namespace Oxide.Plugins
             if(storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 uint deluint;
-                if (storedData.playerminiID.TryGetValue(player.userID, out deluint))
-                {
-                    BaseNetworkable foundit = BaseNetworkable.serverEntities.Find(deluint);
-                    if (foundit == null) return; // Didn't find it
-                }
+                storedData.playerminiID.TryGetValue(player.userID, out deluint);
+                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(deluint);
+                if(tokill == null) return; // Didn't find it
 
                 // Check for mounted players
-                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(deluint);
                 BaseVehicle copter = tokill as BaseVehicle;
                 BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
                 for(int i = 0; i < (int)mountpoints.Length; i++)
@@ -658,7 +803,8 @@ namespace Oxide.Plugins
 #endif
                 tokill.Kill();
                 storedData.playerminiID.Remove(player.userID);
-                baseplayerminicop.Remove(player.userID);
+                var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+                currentMounts.Remove(myKey);
 
                 if(storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
                 {
@@ -666,37 +812,6 @@ namespace Oxide.Plugins
                 }
                 SaveData();
             }
-        }
-
-        object CanDismountEntity(BasePlayer player, BaseMountable entity)
-        {
-            if(player == null) return null;
-            if(!Physics.Raycast(new Ray(entity.transform.position, Vector3.down), minDismountHeight, layerMask))
-            {
-                var copterent = entity.GetComponentInParent<MiniCopter>() ?? null;
-
-                foreach(var item in storedData.playerminiID)
-                {
-#if DEBUG
-                    Puts($"Seat {item.Value} comparing to copterid {copterent.net.ID}");
-#endif
-                    if(item.Value == copterent.net.ID && !allowDriverDismountWhileFlying)
-                    {
-#if DEBUG
-                        Puts("Deny pilot dismount");
-#endif
-                        return false;
-                    }
-                    else if(item.Value -1 == copterent.net.ID && !allowPassengerDismountWhileFlying)
-                    {
-#if DEBUG
-                        Puts("Deny passenger dismount");
-#endif
-                        return false;
-                    }
-                }
-            }
-            return null;
         }
         #endregion
     }
