@@ -8,7 +8,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.3")]
+    [Info("My Mini Copter", "RFC1920", "0.2.4")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -66,7 +66,7 @@ namespace Oxide.Plugins
 
         void OnNewSave()
         {
-            storedData = null;
+            storedData = new StoredData();
             SaveData();
         }
 
@@ -85,7 +85,6 @@ namespace Oxide.Plugins
         void Unload()
         {
             SaveData();
-            storedData = null;
         }
         #endregion
 
