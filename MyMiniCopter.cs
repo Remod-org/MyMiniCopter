@@ -617,18 +617,26 @@ namespace Oxide.Plugins
             var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
             if (mini != null)
             {
+#if DEBUG
                 Puts($"Player {player.userID.ToString()} mounted seat id {mountable.net.ID.ToString()}");
+#endif
                 // Check this seat's ID to see if the copter is one of ours
                 uint id = mountable.net.ID - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter in storedData
+#if DEBUG
                     Puts($"Is this our copter with ID {id.ToString()}?");
+#endif
                     if (storedData.playerminiID.ContainsValue(id))
                     {
+#if DEBUG
                         Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+#endif
                         currentMounts.Remove(mountable.net.ID);
+#if DEBUG
                         Puts($"Adding {player.displayName}'s ID {player.userID} to currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+#endif
                         currentMounts.Add(mountable.net.ID, player.userID);
                         break;
                     }
