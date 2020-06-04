@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.4")]
+    [Info("My Mini Copter", "RFC1920", "0.2.5")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
