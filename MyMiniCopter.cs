@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.5")]
+    [Info("My Mini Copter", "RFC1920", "0.2.6")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -336,8 +336,8 @@ namespace Oxide.Plugins
 
                     // Check for and dismount all players before moving the copter
                     var copter = ent as BaseVehicle;
-                    BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
-                    for(int i = 0; i < (int)mountpoints.Length; i++)
+                    List<BaseVehicle.MountPointInfo> mountpoints = copter.mountPoints;
+                    for(int i = 0; i < (int)mountpoints.Count; i++)
                     {
                         BaseVehicle.MountPointInfo mountPointInfo = mountpoints[i];
                         if(mountPointInfo.mountable != null)
@@ -518,7 +518,8 @@ namespace Oxide.Plugins
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
-                    StorageContainer fuelCan = miniCopter.fuelStorageInstance.Get(true).GetComponent<StorageContainer>();
+                    var x = miniCopter.GetFuelSystem();
+                    StorageContainer fuelCan = miniCopter.GetFuelSystem().GetFuelContainer();
                     ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
                     fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
                 }
@@ -773,12 +774,13 @@ namespace Oxide.Plugins
         // Disable decay for our copters if so configured
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
-            if(entity == null || hitInfo == null) return;
-            if(!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
+            if (entity == null) return;
+            if (hitInfo == null) return;
+            if (!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
             if (storedData == null) return;
-            if(storedData.playerminiID == null) return;
+            if (storedData.playerminiID == null) return;
 
-            if(storedData.playerminiID.ContainsValue(entity.net.ID))
+            if (storedData.playerminiID.ContainsValue(entity.net.ID))
             {
                 if(copterDecay)
                 {
@@ -812,9 +814,10 @@ namespace Oxide.Plugins
 
                 // Check for mounted players
                 BaseVehicle copter = tokill as BaseVehicle;
-                BaseVehicle.MountPointInfo[] mountpoints = copter.mountPoints;
-                for(int i = 0; i < (int)mountpoints.Length; i++)
+                List<BaseVehicle.MountPointInfo> mountpoints = copter.mountPoints;
+                for(int i = 0; i < (int)mountpoints.Count; i++)
                 {
+                    // error CS0029: Cannot implicitly convert type `System.Collections.Generic.List<BaseVehicle.MountPointInfo>' to `BaseVehicle.MountPointInfo[]'
                     BaseVehicle.MountPointInfo mountPointInfo = mountpoints[i];
                     if(mountPointInfo.mountable != null)
                     {
