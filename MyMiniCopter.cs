@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.6")]
+    [Info("My Mini Copter", "RFC1920", "0.2.7")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -60,7 +60,7 @@ namespace Oxide.Plugins
         double cooldownmin = 60;
 
         private Dictionary<ulong, ulong> currentMounts = new Dictionary<ulong, ulong>();
-        private static DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
+        private static readonly DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
 
         class StoredData
         {
@@ -336,10 +336,9 @@ namespace Oxide.Plugins
 
                     // Check for and dismount all players before moving the copter
                     var copter = ent as BaseVehicle;
-                    List<BaseVehicle.MountPointInfo> mountpoints = copter.mountPoints;
-                    for(int i = 0; i < (int)mountpoints.Count; i++)
+                    for(int i = 0; i < (int)copter.mountPoints.Count; i++)
                     {
-                        BaseVehicle.MountPointInfo mountPointInfo = mountpoints[i];
+                        BaseVehicle.MountPointInfo mountPointInfo = copter.mountPoints[i];
                         if(mountPointInfo.mountable != null)
                         {
                             BasePlayer mounted = mountPointInfo.mountable.GetMounted();
@@ -778,7 +777,6 @@ namespace Oxide.Plugins
             if (hitInfo == null) return;
             if (!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
             if (storedData == null) return;
-            if (storedData.playerminiID == null) return;
 
             if (storedData.playerminiID.ContainsValue(entity.net.ID))
             {
@@ -814,11 +812,9 @@ namespace Oxide.Plugins
 
                 // Check for mounted players
                 BaseVehicle copter = tokill as BaseVehicle;
-                List<BaseVehicle.MountPointInfo> mountpoints = copter.mountPoints;
-                for(int i = 0; i < (int)mountpoints.Count; i++)
+                for(int i = 0; i < copter.mountPoints.Count; i++)
                 {
-                    // error CS0029: Cannot implicitly convert type `System.Collections.Generic.List<BaseVehicle.MountPointInfo>' to `BaseVehicle.MountPointInfo[]'
-                    BaseVehicle.MountPointInfo mountPointInfo = mountpoints[i];
+                    BaseVehicle.MountPointInfo mountPointInfo = copter.mountPoints[i];
                     if(mountPointInfo.mountable != null)
                     {
                         BasePlayer mounted = mountPointInfo.mountable.GetMounted();
