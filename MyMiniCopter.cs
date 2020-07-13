@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.7")]
+    [Info("My Mini Copter", "RFC1920", "0.2.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -100,7 +100,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(MinicopterAdmin, this);
             permission.RegisterPermission(MinicopterCooldown, this);
             permission.RegisterPermission(MinicopterUnlimited, this);
-            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
+            LoadData();
         }
 
         void Unload()
@@ -220,6 +220,10 @@ namespace Oxide.Plugins
         {
             // Save the data file as we add/remove minicopters.
             Interface.Oxide.DataFileSystem.WriteObject(Name, storedData);
+        }
+        void LoadData()
+        {
+            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
         }
         #endregion
 
@@ -584,6 +588,7 @@ namespace Oxide.Plugins
                     storedData.playercounter.Remove(player.userID);
                 }
                 SaveData();
+                LoadData();
             }
             else if(foundcopter == false)
             {
@@ -773,12 +778,12 @@ namespace Oxide.Plugins
         // Disable decay for our copters if so configured
         void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
-            if (entity == null) return;
-            if (hitInfo == null) return;
+            if (entity?.net?.ID == null) return;
+            if (hitInfo?.damageTypes == null) return;
             if (!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
             if (storedData == null) return;
 
-            if (storedData.playerminiID.ContainsValue(entity.net.ID))
+            if (storedData.playerminiID != null && storedData.playerminiID.ContainsValue(entity.net.ID))
             {
                 if(copterDecay)
                 {
