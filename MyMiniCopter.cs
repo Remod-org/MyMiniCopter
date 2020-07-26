@@ -29,7 +29,7 @@ using System.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.2.9")]
+    [Info("My Mini Copter", "RFC1920", "0.3.0")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -101,6 +101,27 @@ namespace Oxide.Plugins
             permission.RegisterPermission(MinicopterCooldown, this);
             permission.RegisterPermission(MinicopterUnlimited, this);
             LoadData();
+
+            foreach(var x in storedData.playerminiID)
+            {
+                BaseNetworkable vehicleMini = BaseNetworkable.serverEntities.Find(x.Value);
+                if (vehicleMini == null)
+                {
+                    return; // Didn't find it
+                }
+                MiniCopter miniCopter = vehicleMini as MiniCopter;
+
+                var player = covalence.Players.FindPlayer(x.Key.ToString());
+                if (permission.UserHasPermission(player.Id, MinicopterUnlimited))
+                {
+                    // Set fuel requirements to 0
+                    miniCopter.fuelPerSec = 0f;
+                }
+                else
+                {
+                    miniCopter.fuelPerSec = stdFuelConsumption;
+                }
+            }
         }
 
         void Unload()
