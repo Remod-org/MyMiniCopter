@@ -26,10 +26,12 @@ using System.Collections.Generic;
 using Oxide.Core;
 using System;
 using System.Linq;
+using Oxide.Core.Plugins;
+using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.0")]
+    [Info("My Mini Copter", "RFC1920", "0.3.1")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -77,7 +79,7 @@ namespace Oxide.Plugins
         #region loadunload
         void OnServerInitialized()
         {
-            if(((cooldownmin * 60) <= 120) & useCooldown)
+            if (((cooldownmin * 60) <= 120) & useCooldown)
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
                 cooldownmin = 2;
@@ -102,7 +104,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(MinicopterUnlimited, this);
             LoadData();
 
-            foreach(var x in storedData.playerminiID)
+            foreach (var x in storedData.playerminiID)
             {
                 BaseNetworkable vehicleMini = BaseNetworkable.serverEntities.Find(x.Value);
                 if (vehicleMini == null)
@@ -135,6 +137,10 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
+                {"MyMiniHelp", "Spawn minicopter in front of you." },
+                {"NoMiniHelp", "Destroy your minicopter if in range ({0} meters)." },
+                {"WMiniHelp", "Find your minicopter." },
+                {"GetMiniHelp", "Retrieve your minicopter." },
                 {"AlreadyMsg", "You already have a mini helicopter.\nUse command '/nomini' to remove it."},
                 {"SpawnedMsg", "Your mini copter has spawned !\nUse command '/nomini' to remove it."},
                 {"KilledMsg", "Your mini copter has been removed/killed."},
@@ -149,6 +155,9 @@ namespace Oxide.Plugins
 
             lang.RegisterMessages(new Dictionary<string, string>
             {
+                {"MyMiniHelp", "Créez un mini hélicoptère devant vous." },
+                {"NoMiniHelp", "Détruisez votre mini hélicoptère si il est à portée. ({0} mètres)." }, 
+                {"GetMiniHelp", "Récupérez votre mini hélicoptère." },
                 {"AlreadyMsg", "Vous avez déjà un mini hélicoptère\nUtilisez la commande '/nomini' pour le supprimer."},
                 {"SpawnedMsg", "Votre mini hélico est arrivé !\nUtilisez la commande '/nomini' pour le supprimer."},
                 {"KilledMsg", "Votre mini hélico a disparu du monde."},
@@ -170,13 +179,13 @@ namespace Oxide.Plugins
 
         private void PrintMsgL(BasePlayer player, string msgId, params object[] args)
         {
-            if(player == null) return;
+            if (player == null) return;
             PrintMsg(player, _(msgId, player, args));
         }
 
         private void PrintMsg(BasePlayer player, string msg)
         {
-            if(player == null) return;
+            if (player == null) return;
             SendReply(player, $"{Prefix}{msg}");
         }
 
@@ -184,9 +193,9 @@ namespace Oxide.Plugins
         private void ChatPlayerOnline(ulong ailldi, string message)
         {
             BasePlayer player = BasePlayer.FindByID(ailldi);
-            if(player != null)
+            if (player != null)
             {
-                if(message == "killed") PrintMsgL(player, "KilledMsg");
+                if (message == "killed") PrintMsgL(player, "KilledMsg");
             }
         }
         #endregion
@@ -200,7 +209,7 @@ namespace Oxide.Plugins
         private void LoadVariables()
         {
             allowWhenBlocked = Convert.ToBoolean(GetConfig("Global", "Allow spawn when building blocked", false));
-            stdFuelConsumption = (float) Convert.ToSingle(GetConfig("Global", "Standard fuel consumption per second", 0.25));
+            stdFuelConsumption = (float)Convert.ToSingle(GetConfig("Global", "Standard fuel consumption per second", 0.25));
             Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :")); // Chat prefix
             cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));
             useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
@@ -213,7 +222,7 @@ namespace Oxide.Plugins
             allowPassengerDismountWhileFlying = Convert.ToBoolean(GetConfig("Global", "Allow passenger dismount while flying", true));
             minDismountHeight = Convert.ToSingle(GetConfig("Maximum height for dismount", "Value in meters", "7"));
 
-            if(!ConfigChanged) return;
+            if (!ConfigChanged) return;
             SaveConfig();
             ConfigChanged = false;
         }
@@ -221,14 +230,14 @@ namespace Oxide.Plugins
         private object GetConfig(string menu, string datavalue, object defaultValue)
         {
             var data = Config[menu] as Dictionary<string, object>;
-            if(data == null)
+            if (data == null)
             {
                 data = new Dictionary<string, object>();
                 Config[menu] = data;
                 ConfigChanged = true;
             }
             object value;
-            if(!data.TryGetValue(datavalue, out value))
+            if (!data.TryGetValue(datavalue, out value))
             {
                 value = defaultValue;
                 data[datavalue] = value;
@@ -256,30 +265,30 @@ namespace Oxide.Plugins
             double secondsSinceEpoch = DateTime.UtcNow.Subtract(epoch).TotalSeconds;
 
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
-            if(isspawner == false)
+            if (isspawner == false)
             {
                 PrintMsgL(player, "NoPermMsg");
                 return;
             }
-            if(storedData.playerminiID.ContainsKey(player.userID) == true)
+            if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 PrintMsgL(player, "AlreadyMsg");
                 return;
             }
 
-            if(player.IsBuildingBlocked() & !allowWhenBlocked)
+            if (player.IsBuildingBlocked() & !allowWhenBlocked)
             {
                 PrintMsgL(player, "BlockedMsg");
                 return;
             }
 
             bool hascooldown = permission.UserHasPermission(player.UserIDString, MinicopterCooldown);
-            if(!useCooldown) hascooldown = false;
+            if (!useCooldown) hascooldown = false;
 
             int secsleft = 0;
-            if(hascooldown == true)
+            if (hascooldown == true)
             {
-                if(storedData.playercounter.ContainsKey(player.userID) == false)
+                if (storedData.playercounter.ContainsKey(player.userID) == false)
                 {
                     storedData.playercounter.Add(player.userID, secondsSinceEpoch);
                     SaveData();
@@ -289,7 +298,7 @@ namespace Oxide.Plugins
                     double count;
                     storedData.playercounter.TryGetValue(player.userID, out count);
 
-                    if((secondsSinceEpoch - count) > (cooldownmin * 60))
+                    if ((secondsSinceEpoch - count) > (cooldownmin * 60))
                     {
 #if DEBUG
                         Puts($"Player reached cooldown.  Clearing data.");
@@ -301,7 +310,7 @@ namespace Oxide.Plugins
                     {
                         secsleft = Math.Abs((int)((cooldownmin * 60) - (secondsSinceEpoch - count)));
 
-                        if(secsleft > 0)
+                        if (secsleft > 0)
                         {
 #if DEBUG
                             Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
@@ -314,7 +323,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                if(storedData.playercounter.ContainsKey(player.userID))
+                if (storedData.playercounter.ContainsKey(player.userID))
                 {
                     storedData.playercounter.Remove(player.userID);
                     SaveData();
@@ -327,7 +336,7 @@ namespace Oxide.Plugins
         [ChatCommand("gmini")]
         private void GetMyMiniMyCopterChatCommand(BasePlayer player, string command, string[] args)
         {
-            if(player.IsBuildingBlocked() & !allowWhenBlocked)
+            if (player.IsBuildingBlocked() & !allowWhenBlocked)
             {
                 PrintMsgL(player, "BlockedMsg");
                 return;
@@ -335,24 +344,24 @@ namespace Oxide.Plugins
 
             bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
             bool canfetch = permission.UserHasPermission(player.UserIDString, MinicopterFetch);
-            if(!(canspawn & canfetch))
+            if (!(canspawn & canfetch))
             {
                 PrintMsgL(player, "NoPermMsg");
                 return;
             }
-            if(storedData.playerminiID.ContainsKey(player.userID) == true)
+            if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 uint findme;
                 storedData.playerminiID.TryGetValue(player.userID, out findme);
                 var foundit = BaseNetworkable.serverEntities.Find(findme);
-                if(foundit != null)
+                if (foundit != null)
                 {
                     var ent = BaseNetworkable.serverEntities.Find(findme);
 
                     // Distance check
-                    if(gminidistance > 0f)
+                    if (gminidistance > 0f)
                     {
-                        if(Vector3.Distance(player.transform.position, ent.transform.position) > gminidistance)
+                        if (Vector3.Distance(player.transform.position, ent.transform.position) > gminidistance)
                         {
                             PrintMsgL(player, "DistanceMsg", gminidistance);
                             return;
@@ -361,15 +370,15 @@ namespace Oxide.Plugins
 
                     // Check for and dismount all players before moving the copter
                     var copter = ent as BaseVehicle;
-                    for(int i = 0; i < (int)copter.mountPoints.Count; i++)
+                    for (int i = 0; i < (int)copter.mountPoints.Count; i++)
                     {
                         BaseVehicle.MountPointInfo mountPointInfo = copter.mountPoints[i];
-                        if(mountPointInfo.mountable != null)
+                        if (mountPointInfo.mountable != null)
                         {
                             BasePlayer mounted = mountPointInfo.mountable.GetMounted();
-                            if(mounted)
+                            if (mounted)
                             {
-                                Vector3 player_pos = mounted.transform.position + new Vector3(1,0,1);
+                                Vector3 player_pos = mounted.transform.position + new Vector3(1, 0, 1);
                                 mounted.DismountObject();
                                 mounted.MovePosition(player_pos);
                                 mounted.SendNetworkUpdateImmediate(false);
@@ -396,17 +405,17 @@ namespace Oxide.Plugins
         private void WhereisMyMiniMyCopterChatCommand(BasePlayer player, string command, string[] args)
         {
             bool canspawn = permission.UserHasPermission(player.UserIDString, MinicopterWhere);
-            if(canspawn == false)
+            if (canspawn == false)
             {
                 PrintMsgL(player, "NoPermMsg");
                 return;
             }
-            if(storedData.playerminiID.ContainsKey(player.userID) == true)
+            if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 uint findme;
                 storedData.playerminiID.TryGetValue(player.userID, out findme);
                 var foundit = BaseNetworkable.serverEntities.Find(findme);
-                if(foundit != null)
+                if (foundit != null)
                 {
                     var loc = foundit.transform.position.ToString();
                     PrintMsgL(player, "FoundMsg", loc);
@@ -425,7 +434,7 @@ namespace Oxide.Plugins
         private void KillMyMinicopterChatCommand(BasePlayer player, string command, string[] args)
         {
             bool isspawner = permission.UserHasPermission(player.UserIDString, MinicopterSpawn);
-            if(isspawner == false)
+            if (isspawner == false)
             {
                 PrintMsgL(player, "NoPermMsg");
                 return;
@@ -439,32 +448,32 @@ namespace Oxide.Plugins
         [ConsoleCommand("spawnminicopter")]
         private void SpawnMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if(arg.IsRcon)
+            if (arg.IsRcon)
             {
-                if(arg.Args == null)
+                if (arg.Args == null)
                 {
                     Puts("You need to supply a valid SteamId.");
                     return;
                 }
             }
-            else if(!HasPermission(arg, MinicopterAdmin))
+            else if (!HasPermission(arg, MinicopterAdmin))
             {
                 SendReply(arg, _("NoPermMsg", arg.Connection.player as BasePlayer));
                 return;
             }
-            else if(arg.Args == null)
+            else if (arg.Args == null)
             {
                 SendReply(arg, _("SpawnUsage", arg.Connection.player as BasePlayer));
                 return;
             }
 
-            if(arg.Args.Length == 1)
+            if (arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
-                if(steamid == 0) return;
-                if(steamid.IsSteamId() == false) return;
+                if (steamid == 0) return;
+                if (steamid.IsSteamId() == false) return;
                 BasePlayer player = BasePlayer.FindByID(steamid);
-                if(player != null)
+                if (player != null)
                 {
                     SpawnMyMinicopter(player);
                 }
@@ -475,32 +484,32 @@ namespace Oxide.Plugins
         [ConsoleCommand("killminicopter")]
         private void KillMyMinicopterConsoleCommand(ConsoleSystem.Arg arg)
         {
-            if(arg.IsRcon)
+            if (arg.IsRcon)
             {
-                if(arg.Args == null)
+                if (arg.Args == null)
                 {
                     Puts("You need to supply a valid SteamId.");
                     return;
                 }
             }
-            else if(!HasPermission(arg, MinicopterAdmin))
+            else if (!HasPermission(arg, MinicopterAdmin))
             {
                 SendReply(arg, _("NoPermMsg", arg.Connection.player as BasePlayer));
                 return;
             }
-            else if(arg.Args == null)
+            else if (arg.Args == null)
             {
                 SendReply(arg, _("SpawnUsage", arg.Connection.player as BasePlayer));
                 return;
             }
 
-            if(arg.Args.Length == 1)
+            if (arg.Args.Length == 1)
             {
                 ulong steamid = Convert.ToUInt64(arg.Args[0]);
-                if(steamid == 0) return;
-                if(steamid.IsSteamId() == false) return;
+                if (steamid == 0) return;
+                if (steamid.IsSteamId() == false) return;
                 BasePlayer player = BasePlayer.FindByID(steamid);
-                if(player != null)
+                if (player != null)
                 {
                     KillMyMinicopterPlease(player);
                 }
@@ -512,7 +521,7 @@ namespace Oxide.Plugins
         // Spawn hook
         private void SpawnMyMinicopter(BasePlayer player)
         {
-            if(player.IsBuildingBlocked() & !allowWhenBlocked)
+            if (player.IsBuildingBlocked() & !allowWhenBlocked)
             {
                 PrintMsgL(player, "BlockedMsg");
                 return;
@@ -525,20 +534,20 @@ namespace Oxide.Plugins
             Vector3 position = player.transform.position + straight * 5f;
             position.y = player.transform.position.y + 2.5f;
 
-            if(position == null) return;
+            if (position == null) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
-            if(vehicleMini == null) return;
+            if (vehicleMini == null) return;
             BaseEntity miniEntity = vehicleMini as BaseEntity;
             miniEntity.OwnerID = player.userID;
 
             MiniCopter miniCopter = vehicleMini as MiniCopter;
             vehicleMini.Spawn();
 
-            if(permission.UserHasPermission(player.UserIDString, MinicopterUnlimited))
+            if (permission.UserHasPermission(player.UserIDString, MinicopterUnlimited))
             {
                 // Set fuel requirements to 0
                 miniCopter.fuelPerSec = 0f;
-                if(!allowFuelIfUnlimited)
+                if (!allowFuelIfUnlimited)
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
@@ -561,7 +570,7 @@ namespace Oxide.Plugins
             storedData.playerminiID.Remove(player.userID);
             var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
             currentMounts.Remove(myKey);
-            storedData.playerminiID.Add(player.userID,minicopteruint);
+            storedData.playerminiID.Add(player.userID, minicopteruint);
             SaveData();
 
             miniEntity = null;
@@ -572,7 +581,7 @@ namespace Oxide.Plugins
         private void KillMyMinicopterPlease(BasePlayer player)
         {
             bool foundcopter = false;
-            if(mindistance == 0f)
+            if (mindistance == 0f)
             {
                 foundcopter = true;
             }
@@ -581,22 +590,22 @@ namespace Oxide.Plugins
                 List<BaseEntity> copterlist = new List<BaseEntity>();
                 Vis.Entities<BaseEntity>(player.transform.position, mindistance, copterlist);
 
-                foreach(BaseEntity p in copterlist)
+                foreach (BaseEntity p in copterlist)
                 {
                     var foundent = p.GetComponentInParent<MiniCopter>() ?? null;
-                    if(foundent != null)
+                    if (foundent != null)
                     {
                         foundcopter = true;
                     }
                 }
             }
 
-            if(storedData.playerminiID.ContainsKey(player.userID) == true && foundcopter)
+            if (storedData.playerminiID.ContainsKey(player.userID) == true && foundcopter)
             {
                 uint deluint;
                 storedData.playerminiID.TryGetValue(player.userID, out deluint);
                 var tokill = BaseNetworkable.serverEntities.Find(deluint);
-                if(tokill != null)
+                if (tokill != null)
                 {
                     tokill.Kill(BaseNetworkable.DestroyMode.Gib);
                 }
@@ -604,14 +613,14 @@ namespace Oxide.Plugins
                 var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
                 currentMounts.Remove(myKey);
 
-                if(storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
+                if (storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
                 {
                     storedData.playercounter.Remove(player.userID);
                 }
                 SaveData();
                 LoadData();
             }
-            else if(foundcopter == false)
+            else if (foundcopter == false)
             {
 #if DEBUG
                 Puts($"Player too far from copter to destroy.");
@@ -624,7 +633,7 @@ namespace Oxide.Plugins
         #region hooks
         object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
-            if(player == null) return null;
+            if (player == null) return null;
             var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
             if (mini != null)
             {
@@ -762,31 +771,32 @@ namespace Oxide.Plugins
         }
 
         // On kill - tell owner
-        void OnEntityKill(BaseNetworkable entity)
+        void OnEntityKill(MiniCopter entity)
         {
-            if(entity == null) return;
-            if(entity.net.ID == 0)return;
-            MiniCopter check = entity as MiniCopter;
-            if(check == null) return;
-            if(storedData.playerminiID == null) return;
+            if (entity == null) return;
+            if (entity.net.ID == 0) return;
+
+            if (storedData == null) return;
+            if (storedData.playerminiID == null) return;
             ulong todelete = new ulong();
-            if(storedData.playerminiID.ContainsValue(entity.net.ID) == false)
+
+            if (storedData.playerminiID.ContainsValue(entity.net.ID) == false)
             {
 #if DEBUG
                 Puts($"KILLED non-plugin minicopter");
 #endif
                 return;
             }
-            foreach(var item in storedData.playerminiID)
+            foreach (var item in storedData.playerminiID)
             {
-                if(item.Value == entity.net.ID)
+                if (item.Value == entity.net.ID)
                 {
                     ChatPlayerOnline(item.Key, "killed");
                     BasePlayer player = BasePlayer.FindByID(item.Key);
                     todelete = item.Key;
                 }
             }
-            if(todelete != 0)
+            if (todelete != 0)
             {
                 storedData.playerminiID.Remove(todelete);
                 currentMounts.Remove(entity.net.ID);
@@ -806,7 +816,7 @@ namespace Oxide.Plugins
 
             if (storedData.playerminiID != null && storedData.playerminiID.ContainsValue(entity.net.ID))
             {
-                if(copterDecay)
+                if (copterDecay)
                 {
 #if DEBUG
                     Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
@@ -826,25 +836,25 @@ namespace Oxide.Plugins
 
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
-            if(!killOnSleep) return;
-            if(player == null) return;
+            if (!killOnSleep) return;
+            if (player == null) return;
 
-            if(storedData.playerminiID.ContainsKey(player.userID) == true)
+            if (storedData.playerminiID.ContainsKey(player.userID) == true)
             {
                 uint deluint;
                 storedData.playerminiID.TryGetValue(player.userID, out deluint);
                 BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(deluint);
-                if(tokill == null) return; // Didn't find it
+                if (tokill == null) return; // Didn't find it
 
                 // Check for mounted players
                 BaseVehicle copter = tokill as BaseVehicle;
-                for(int i = 0; i < copter.mountPoints.Count; i++)
+                for (int i = 0; i < copter.mountPoints.Count; i++)
                 {
                     BaseVehicle.MountPointInfo mountPointInfo = copter.mountPoints[i];
-                    if(mountPointInfo.mountable != null)
+                    if (mountPointInfo.mountable != null)
                     {
                         BasePlayer mounted = mountPointInfo.mountable.GetMounted();
-                        if(mounted)
+                        if (mounted)
                         {
 #if DEBUG
                             Puts("Copter owner sleeping but another one is mounted - cannot destroy copter");
@@ -861,7 +871,7 @@ namespace Oxide.Plugins
                 var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
                 currentMounts.Remove(myKey);
 
-                if(storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
+                if (storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
                 {
                     storedData.playercounter.Remove(player.userID);
                 }
@@ -869,5 +879,21 @@ namespace Oxide.Plugins
             }
         }
         #endregion
+
+        [HookMethod("SendHelpText")]
+        private void SendHelpText(BasePlayer player)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("<color=#05eb59>" + Name + " " + Version + "</color> · Spawn a Mini Helicopter\n");
+            sb.Append("  · ").AppendLine($"/mymini: " + _("MyMiniHelp", player, mindistance));
+            sb.Append("  · ").AppendLine($"/nomini: " + _("NoMiniHelp", player));
+            sb.Append("  · ").AppendLine($"/wmini: " + _("WMiniHelp", player));
+
+            if(permission.UserHasPermission(player.UserIDString, MinicopterFetch))
+            {
+                sb.Append("  · ").AppendLine($"/gmini: " + _("GetMiniHelp", player));
+            }
+            player.ChatMessage(sb.ToString());
+        }
     }
 }
