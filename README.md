@@ -36,38 +36,45 @@ no return value;
 
 ```json
 {
-  "Chat Settings": {
-      "Prefix": "[My MiniCopter] :"
+  "Global": {
+    "allowWhenBlocked": false,
+    "useCooldown": true,
+    "copterDecay": false,
+    "killOnSleep": false,
+    "allowFuelIfUnlimited": false,
+    "allowDriverDismountWhileFlying": true,
+    "allowPassengerDismountWhileFlying": true,
+    "stdFuelConsumption": 0.25,
+    "cooldownmin": 60.0,
+    "mindistance": 0.0,
+    "gminidistance": 0.0,
+    "minDismountHeight": 7.0,
+    "startingFuel": 0.0,
+    "Prefix": "[My MiniCopter] :"
   },
-      "Cooldown (on permission)": {
-          "Use Cooldown": true,
-          "Value in minutes": "60"
-      },
-      "Global": {
-          "Allow spawn when building blocked": false,
-          "Allow unlimited to use fuel tank": false,
-		  "allowDriverDismountWhileFlying": true,
-		  "allowPassengerDismountWhileFlying": true,
-          "Destroy copter on player sleep": false,
-          "Standard fuel consumption per second": 0.25
-      },
-      "Maximum height for dismount": {
-          "Value in meters": "7"
-      },
-      "Minimum Distance for /gmini": {
-          "Value in meters": "0"
-      },
-      "Minimum Distance for /nomini": {
-          "Value in meters": "0"
-      }
+  "Version": {
+    "Major": 0,
+    "Minor": 0,
+    "Patch": 0
+  }
 }
 ```
 Global:
 
-- "Allow spawn when building blocked": set to true to allow player to use /mymini while building blocked
-- "Allow unlimited to use fuel tank": If the player has the unlimited permissions, they will not be able to use the fuel tank if this is set.  1LGF is added so the copter will start.
-- "Destroy copter on player sleep": If this is true, the player's copter will be destroyed when they disconnect.  It should check that no one is mounted to the copter.
-- "Standard fuel consumption per second": How much fuel does the copter use (assuming player does NOT have the unlimited permission).  0.25/S is the default.
+- `allowWhenBlocked` -- Set to true to allow player to use /mymini while building blocked
+- `useCooldown` -- Enforce a cooldown for minutes between use of /mymini.
+- `copterDecay` -- Enable decay
+- `killOnSleep` -- Kill the copter when the user leaves the server
+- `allowFuelIfUnlimited` -- Allow unlimited permission users to add fuel anyway.
+- `allowDriverDismountWhileFlying` -- Allow the driver to dismount while flying above minDismountHeight.
+- `allowPassengerDismountWhileFlying` --  Allow passenger to dismount while flying above minDismountHeight.
+- `stdFuelConsumption` -- Adjust fuel consumption per second from standard amount (0.25f)
+- `cooldownmin` -- Minutes to wait between usage of /mymini
+- `mindistance` -- Miniumum distance to copter for using /nomini
+- `gminidistance` -- Miniumum distance to copter for using /gmini
+- `minDismountHeight` -- Miniumum height for dismount (for allow rules above)
+- `startingFuel` -- How much fuel to start with for non-unlimited permission players (default 0)
+- `Prefix` -- Prefix for chat messages (default [MyMiniCopter: ])
 
 Set "Value in meters" for gmini or nomini to 0 to disable the requirement (default).
 

@@ -31,26 +31,15 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.1")]
+    [Info("My Mini Copter", "RFC1920", "0.3.2")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
     {
         string Prefix = "[My MiniCopter] :";
         const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
+        private ConfigData configData;
 
-        private bool ConfigChanged;
-        private bool useCooldown = true;
-        private bool copterDecay = false;
-        private bool allowWhenBlocked = false;
-        private bool killOnSleep = false;
-        private bool allowFuelIfUnlimited = false;
-        private bool allowDriverDismountWhileFlying = true;
-        private bool allowPassengerDismountWhileFlying = true;
-        private float stdFuelConsumption = 0.25f;
-        private float mindistance = 0f;
-        private float gminidistance = 0f;
-        private float minDismountHeight = 7f;
         const string MinicopterSpawn = "myminicopter.spawn";
         const string MinicopterFetch = "myminicopter.fetch";
         const string MinicopterWhere = "myminicopter.where";
@@ -79,7 +68,7 @@ namespace Oxide.Plugins
         #region loadunload
         void OnServerInitialized()
         {
-            if (((cooldownmin * 60) <= 120) & useCooldown)
+            if (((cooldownmin * 60) <= 120) & configData.Global.useCooldown)
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
                 cooldownmin = 2;
@@ -95,7 +84,7 @@ namespace Oxide.Plugins
 
         void Loaded()
         {
-            LoadVariables();
+            LoadConfigVariables();
             permission.RegisterPermission(MinicopterSpawn, this);
             permission.RegisterPermission(MinicopterFetch, this);
             permission.RegisterPermission(MinicopterWhere, this);
@@ -121,9 +110,10 @@ namespace Oxide.Plugins
                 }
                 else
                 {
-                    miniCopter.fuelPerSec = stdFuelConsumption;
+                    miniCopter.fuelPerSec = configData.Global.stdFuelConsumption;
                 }
             }
+            SaveConfig(configData);
         }
 
         void Unload()
@@ -200,63 +190,6 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region CONFIG
-        protected override void LoadDefaultConfig()
-        {
-            LoadVariables();
-        }
-
-        private void LoadVariables()
-        {
-            allowWhenBlocked = Convert.ToBoolean(GetConfig("Global", "Allow spawn when building blocked", false));
-            stdFuelConsumption = (float)Convert.ToSingle(GetConfig("Global", "Standard fuel consumption per second", 0.25));
-            Prefix = Convert.ToString(GetConfig("Chat Settings", "Prefix", "[My MiniCopter] :")); // Chat prefix
-            cooldownmin = Convert.ToSingle(GetConfig("Cooldown (on permission)", "Value in minutes", "60"));
-            useCooldown = Convert.ToBoolean(GetConfig("Cooldown (on permission)", "Use Cooldown", true));
-            copterDecay = Convert.ToBoolean(GetConfig("Allow decay on our minicopters", "Copter Decay", false));
-            mindistance = Convert.ToSingle(GetConfig("Minimum Distance for /nomini", "Value in meters", "0"));
-            gminidistance = Convert.ToSingle(GetConfig("Minimum Distance for /gmini", "Value in meters", "0"));
-            killOnSleep = Convert.ToBoolean(GetConfig("Global", "Destroy copter on player sleep", false));
-            allowFuelIfUnlimited = Convert.ToBoolean(GetConfig("Global", "Allow unlimited to use fuel tank", false));
-            allowDriverDismountWhileFlying = Convert.ToBoolean(GetConfig("Global", "Allow driver dismount while flying", true));
-            allowPassengerDismountWhileFlying = Convert.ToBoolean(GetConfig("Global", "Allow passenger dismount while flying", true));
-            minDismountHeight = Convert.ToSingle(GetConfig("Maximum height for dismount", "Value in meters", "7"));
-
-            if (!ConfigChanged) return;
-            SaveConfig();
-            ConfigChanged = false;
-        }
-
-        private object GetConfig(string menu, string datavalue, object defaultValue)
-        {
-            var data = Config[menu] as Dictionary<string, object>;
-            if (data == null)
-            {
-                data = new Dictionary<string, object>();
-                Config[menu] = data;
-                ConfigChanged = true;
-            }
-            object value;
-            if (!data.TryGetValue(datavalue, out value))
-            {
-                value = defaultValue;
-                data[datavalue] = value;
-                ConfigChanged = true;
-            }
-            return value;
-        }
-
-        void SaveData()
-        {
-            // Save the data file as we add/remove minicopters.
-            Interface.Oxide.DataFileSystem.WriteObject(Name, storedData);
-        }
-        void LoadData()
-        {
-            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
-        }
-        #endregion
-
         #region chatcommands
         // Chat spawn
         [ChatCommand("mymini")]
@@ -276,14 +209,14 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (player.IsBuildingBlocked() & !allowWhenBlocked)
+            if (player.IsBuildingBlocked() & !configData.Global.allowWhenBlocked)
             {
                 PrintMsgL(player, "BlockedMsg");
                 return;
             }
 
             bool hascooldown = permission.UserHasPermission(player.UserIDString, MinicopterCooldown);
-            if (!useCooldown) hascooldown = false;
+            if (!configData.Global.useCooldown) hascooldown = false;
 
             int secsleft = 0;
             if (hascooldown == true)
@@ -336,7 +269,7 @@ namespace Oxide.Plugins
         [ChatCommand("gmini")]
         private void GetMyMiniMyCopterChatCommand(BasePlayer player, string command, string[] args)
         {
-            if (player.IsBuildingBlocked() & !allowWhenBlocked)
+            if (player.IsBuildingBlocked() & !configData.Global.allowWhenBlocked)
             {
                 PrintMsgL(player, "BlockedMsg");
                 return;
@@ -359,11 +292,11 @@ namespace Oxide.Plugins
                     var ent = BaseNetworkable.serverEntities.Find(findme);
 
                     // Distance check
-                    if (gminidistance > 0f)
+                    if (configData.Global.gminidistance > 0f)
                     {
-                        if (Vector3.Distance(player.transform.position, ent.transform.position) > gminidistance)
+                        if (Vector3.Distance(player.transform.position, ent.transform.position) > configData.Global.gminidistance)
                         {
-                            PrintMsgL(player, "DistanceMsg", gminidistance);
+                            PrintMsgL(player, "DistanceMsg", configData.Global.gminidistance);
                             return;
                         }
                     }
@@ -521,7 +454,7 @@ namespace Oxide.Plugins
         // Spawn hook
         private void SpawnMyMinicopter(BasePlayer player)
         {
-            if (player.IsBuildingBlocked() & !allowWhenBlocked)
+            if (player.IsBuildingBlocked() & !configData.Global.allowWhenBlocked)
             {
                 PrintMsgL(player, "BlockedMsg");
                 return;
@@ -547,7 +480,7 @@ namespace Oxide.Plugins
             {
                 // Set fuel requirements to 0
                 miniCopter.fuelPerSec = 0f;
-                if (!allowFuelIfUnlimited)
+                if (!configData.Global.allowFuelIfUnlimited)
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
@@ -557,9 +490,15 @@ namespace Oxide.Plugins
                     fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
                 }
             }
+            else if(configData.Global.startingFuel > 0)
+            {
+                var x = miniCopter.GetFuelSystem();
+                StorageContainer fuelCan = miniCopter.GetFuelSystem().GetFuelContainer();
+                ItemManager.CreateByItemID(-946369541, Convert.ToInt32(configData.Global.startingFuel))?.MoveToContainer(fuelCan.inventory);
+            }
             else
             {
-                miniCopter.fuelPerSec = stdFuelConsumption;
+                miniCopter.fuelPerSec = configData.Global.stdFuelConsumption;
             }
 
             PrintMsgL(player, "SpawnedMsg");
@@ -581,14 +520,14 @@ namespace Oxide.Plugins
         private void KillMyMinicopterPlease(BasePlayer player)
         {
             bool foundcopter = false;
-            if (mindistance == 0f)
+            if (configData.Global.mindistance == 0f)
             {
                 foundcopter = true;
             }
             else
             {
                 List<BaseEntity> copterlist = new List<BaseEntity>();
-                Vis.Entities<BaseEntity>(player.transform.position, mindistance, copterlist);
+                Vis.Entities<BaseEntity>(player.transform.position, configData.Global.mindistance, copterlist);
 
                 foreach (BaseEntity p in copterlist)
                 {
@@ -613,7 +552,7 @@ namespace Oxide.Plugins
                 var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
                 currentMounts.Remove(myKey);
 
-                if (storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
+                if (storedData.playercounter.ContainsKey(player.userID) & !configData.Global.useCooldown)
                 {
                     storedData.playercounter.Remove(player.userID);
                 }
@@ -625,7 +564,7 @@ namespace Oxide.Plugins
 #if DEBUG
                 Puts($"Player too far from copter to destroy.");
 #endif
-                PrintMsgL(player, "DistanceMsg", mindistance);
+                PrintMsgL(player, "DistanceMsg", configData.Global.mindistance);
             }
         }
         #endregion
@@ -707,12 +646,12 @@ namespace Oxide.Plugins
             var mini = mountable.GetComponentInParent<MiniCopter>() ?? null;
             if (mini != null)
             {
-                if (!Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), minDismountHeight, layerMask))
+                if (!Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), configData.Global.minDismountHeight, layerMask))
                 {
                     // Is this one of ours?
                     if (storedData.playerminiID.ContainsValue(mountable.net.ID - 1))
                     {
-                        if (!allowDriverDismountWhileFlying)
+                        if (!configData.Global.allowDriverDismountWhileFlying)
                         {
 #if DEBUG
                             Puts("DENY PILOT DISMOUNT");
@@ -724,7 +663,7 @@ namespace Oxide.Plugins
                     }
                     else if (storedData.playerminiID.ContainsValue(mountable.net.ID - 2))
                     {
-                        if (!allowPassengerDismountWhileFlying)
+                        if (!configData.Global.allowPassengerDismountWhileFlying)
                         {
 #if DEBUG
                             Puts("DENY PASSENGER DISMOUNT");
@@ -816,7 +755,7 @@ namespace Oxide.Plugins
 
             if (storedData.playerminiID != null && storedData.playerminiID.ContainsValue(entity.net.ID))
             {
-                if (copterDecay)
+                if (configData.Global.copterDecay)
                 {
 #if DEBUG
                     Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
@@ -836,7 +775,7 @@ namespace Oxide.Plugins
 
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
-            if (!killOnSleep) return;
+            if (!configData.Global.killOnSleep) return;
             if (player == null) return;
 
             if (storedData.playerminiID.ContainsKey(player.userID) == true)
@@ -871,7 +810,7 @@ namespace Oxide.Plugins
                 var myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
                 currentMounts.Remove(myKey);
 
-                if (storedData.playercounter.ContainsKey(player.userID) & !useCooldown)
+                if (storedData.playercounter.ContainsKey(player.userID) & !configData.Global.useCooldown)
                 {
                     storedData.playercounter.Remove(player.userID);
                 }
@@ -885,7 +824,7 @@ namespace Oxide.Plugins
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("<color=#05eb59>" + Name + " " + Version + "</color> · Spawn a Mini Helicopter\n");
-            sb.Append("  · ").AppendLine($"/mymini: " + _("MyMiniHelp", player, mindistance));
+            sb.Append("  · ").AppendLine($"/mymini: " + _("MyMiniHelp", player, configData.Global.mindistance));
             sb.Append("  · ").AppendLine($"/nomini: " + _("NoMiniHelp", player));
             sb.Append("  · ").AppendLine($"/wmini: " + _("WMiniHelp", player));
 
@@ -895,5 +834,61 @@ namespace Oxide.Plugins
             }
             player.ChatMessage(sb.ToString());
         }
+
+        #region config
+        public class Global
+        {
+            public bool allowWhenBlocked = false;
+            public bool useCooldown = true;
+            public bool copterDecay = false;
+            public bool killOnSleep = false;
+            public bool allowFuelIfUnlimited = false;
+            public bool allowDriverDismountWhileFlying = true;
+            public bool allowPassengerDismountWhileFlying = true;
+            public float stdFuelConsumption = 0.25f;
+            public float cooldownmin = 60f;
+            public float mindistance = 0f;
+            public float gminidistance = 0f;
+            public float minDismountHeight = 7f;
+            public float startingFuel = 0f;
+            public string Prefix = "[My MiniCopter] :"; // Chat prefix
+        }
+
+        public class ConfigData
+        {
+            public Global Global;
+            public VersionNumber Version;
+        }
+
+        void LoadConfigVariables()
+        {
+            configData = Config.ReadObject<ConfigData>();
+        }
+
+        protected override void LoadDefaultConfig()
+        {
+            Puts("Creating new config file.");
+            var config = new ConfigData
+            {
+                Version = Version
+            };
+            SaveConfig(config);
+        }
+
+        private void SaveConfig(ConfigData config)
+        {
+            Config.WriteObject(config, true);
+        }
+
+        void SaveData()
+        {
+            // Save the data file as we add/remove minicopters.
+            Interface.Oxide.DataFileSystem.WriteObject(Name, storedData);
+        }
+        void LoadData()
+        {
+            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
+        }
+        #endregion
     }
 }
