@@ -31,7 +31,7 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.2")]
+    [Info("My Mini Copter", "RFC1920", "0.3.3")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
@@ -870,6 +870,7 @@ namespace Oxide.Plugins
             Puts("Creating new config file.");
             var config = new ConfigData
             {
+                Global = new Global(),
                 Version = Version
             };
             SaveConfig(config);
