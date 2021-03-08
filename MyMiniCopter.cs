@@ -31,12 +31,11 @@ using System.Text;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.3")]
+    [Info("My Mini Copter", "RFC1920", "0.3.4")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     public class MyMiniCopter : RustPlugin
     {
-        string Prefix = "[My MiniCopter] :";
         const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
         private ConfigData configData;
 
@@ -176,7 +175,7 @@ namespace Oxide.Plugins
         private void PrintMsg(BasePlayer player, string msg)
         {
             if (player == null) return;
-            SendReply(player, $"{Prefix}{msg}");
+            SendReply(player, $"{configData.Global.Prefix}{msg}");
         }
 
         // Chat message to online player with ulong
