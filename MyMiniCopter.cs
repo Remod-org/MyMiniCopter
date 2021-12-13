@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.7")]
+    [Info("My Mini Copter", "RFC1920", "0.3.8")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -135,6 +135,7 @@ namespace Oxide.Plugins
                 {"FoundMsg", "Your copter is located at {0}."},
                 {"CooldownMsg", "You must wait {0} seconds before spawning a new mini copter."},
                 {"DistanceMsg", "You must be within {0} meters of your mini copter."},
+                {"RunningMsg", "Your copter is currently flying and cannot be fetched."},
                 {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."}
             }, this, "en");
 
@@ -279,11 +280,18 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    // Check for and dismount all players before moving the copter
-                    BaseVehicle copter = ent as BaseVehicle;
-                    for (int i = 0; i < copter.mountPoints.Count; i++)
+                    MiniCopter copter = ent as MiniCopter;
+                    if (copter.engineController.IsOn)
                     {
-                        BaseVehicle.MountPointInfo mountPointInfo = copter.mountPoints[i];
+                        Message(player, "RunningMsg");
+                        return;
+                    }
+
+                    // Check for and dismount all players before moving the copter
+                    BaseVehicle bv = ent as BaseVehicle;
+                    for (int i = 0; i < bv.mountPoints.Count; i++)
+                    {
+                        BaseVehicle.MountPointInfo mountPointInfo = bv.mountPoints[i];
                         if (mountPointInfo.mountable != null)
                         {
                             BasePlayer mounted = mountPointInfo.mountable.GetMounted();
