@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.8")]
+    [Info("My Mini Copter", "RFC1920", "0.3.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -472,8 +472,7 @@ namespace Oxide.Plugins
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
-                    EntityFuelSystem x = miniCopter.GetFuelSystem();
-                    StorageContainer fuelCan = miniCopter.GetFuelSystem().GetFuelContainer();
+                    StorageContainer fuelCan = miniCopter.GetFuelSystem().fuelStorageInstance.Get(true);
                     ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
                     fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
                 }
@@ -481,7 +480,8 @@ namespace Oxide.Plugins
             else if (configData.Global.startingFuel > 0)
             {
                 EntityFuelSystem x = miniCopter.GetFuelSystem();
-                StorageContainer fuelCan = miniCopter.GetFuelSystem().GetFuelContainer();
+                //StorageContainer fuelCan = miniCopter.GetFuelSystem().GetFuelContainer();
+                StorageContainer fuelCan = miniCopter.GetFuelSystem().fuelStorageInstance.Get(true);
                 ItemManager.CreateByItemID(-946369541, Convert.ToInt32(configData.Global.startingFuel))?.MoveToContainer(fuelCan.inventory);
             }
             else
