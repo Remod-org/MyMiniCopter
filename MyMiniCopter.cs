@@ -472,17 +472,21 @@ namespace Oxide.Plugins
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
-                    StorageContainer fuelCan = miniCopter.GetFuelSystem().fuelStorageInstance.Get(true);
-                    ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
-                    fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
+                    StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
+                    if (fuelCan?.IsValid() == true)
+                    {
+                        ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
+                        fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
+                    }
                 }
             }
             else if (configData.Global.startingFuel > 0)
             {
-                EntityFuelSystem x = miniCopter.GetFuelSystem();
-                //StorageContainer fuelCan = miniCopter.GetFuelSystem().GetFuelContainer();
-                StorageContainer fuelCan = miniCopter.GetFuelSystem().fuelStorageInstance.Get(true);
-                ItemManager.CreateByItemID(-946369541, Convert.ToInt32(configData.Global.startingFuel))?.MoveToContainer(fuelCan.inventory);
+                StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
+                if (fuelCan?.IsValid() == true)
+                {
+                    ItemManager.CreateByItemID(-946369541, Convert.ToInt32(configData.Global.startingFuel))?.MoveToContainer(fuelCan.inventory);
+                }
             }
             else
             {
