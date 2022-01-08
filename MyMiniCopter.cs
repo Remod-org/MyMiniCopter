@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.3.9")]
+    [Info("My Mini Copter", "RFC1920", "0.4.0")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -703,26 +703,32 @@ namespace Oxide.Plugins
             }
         }
 
-        // Disable decay for our copters if so configured
-        private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
+        private object OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitInfo)
         {
-            if (entity?.net?.ID == null) return;
-            if (hitInfo?.damageTypes == null) return;
-            if (!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
-            if (storedData == null) return;
+            if (entity?.net?.ID == null) return null;
+            if (hitInfo?.damageTypes == null) return null;
 
-            if (storedData.playerminiID?.ContainsValue(entity.net.ID) == true)
+            if (storedData?.playerminiID?.ContainsValue(entity.net.ID) == true)
             {
-                if (configData.Global.copterDecay)
+                if (hitInfo?.damageTypes?.GetMajorityDamageType().ToString() == "Decay")
                 {
-                    if (configData.Global.debug) Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
+                    if (configData.Global.copterDecay)
+                    {
+                        if (configData.Global.debug) Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
+                    }
+                    else
+                    {
+                        if (configData.Global.debug) Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
+                        hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
+                    }
+                    return null;
                 }
-                else
+                else if (!configData.Global.allowDamage)
                 {
-                    if (configData.Global.debug) Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
-                    hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
+                    return true;
                 }
             }
+            return null;
         }
 
         private void OnPlayerDisconnected(BasePlayer player, string reason)
@@ -790,6 +796,7 @@ namespace Oxide.Plugins
             public bool allowRespawnWhenActive;
             public bool useCooldown;
             public bool copterDecay;
+            public bool allowDamage;
             public bool killOnSleep;
             public bool allowFuelIfUnlimited;
             public bool allowDriverDismountWhileFlying;
@@ -818,6 +825,12 @@ namespace Oxide.Plugins
             {
                 configData.Global.allowRespawnWhenActive = false;
             }
+
+            if (configData.Version < new VersionNumber(0, 4, 0))
+            {
+                configData.Global.allowDamage = true;
+            }
+
             configData.Version = Version;
             SaveConfig(configData);
         }
@@ -833,6 +846,7 @@ namespace Oxide.Plugins
                     allowRespawnWhenActive = false,
                     useCooldown = true,
                     copterDecay = false,
+                    allowDamage = true,
                     killOnSleep = false,
                     allowFuelIfUnlimited = false,
                     allowDriverDismountWhileFlying = true,
