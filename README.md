@@ -40,6 +40,7 @@ no return value;
     "allowWhenBlocked": false,
     "useCooldown": true,
     "copterDecay": false,
+    "allowDamage": true,
     "killOnSleep": false,
     "allowFuelIfUnlimited": false,
     "allowDriverDismountWhileFlying": true,
@@ -54,7 +55,7 @@ no return value;
   },
   "Version": {
     "Major": 0,
-    "Minor": 0,
+    "Minor": 4,
     "Patch": 0
   }
 }
@@ -64,6 +65,7 @@ Global:
 - `allowWhenBlocked` -- Set to true to allow player to use /mymini while building blocked
 - `useCooldown` -- Enforce a cooldown for minutes between use of /mymini.
 - `copterDecay` -- Enable decay
+- `allowDamage` -- Enable/allow damage (old default)
 - `killOnSleep` -- Kill the copter when the user leaves the server
 - `allowFuelIfUnlimited` -- Allow unlimited permission users to add fuel anyway.
 - `allowDriverDismountWhileFlying` -- Allow the driver to dismount while flying above minDismountHeight.
