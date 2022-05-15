@@ -857,6 +857,7 @@ namespace Oxide.Plugins
                     gminidistance = 0f,
                     minDismountHeight = 7f,
                     startingFuel = 0f,
+                    debug = false,
                     Prefix = "[My MiniCopter]: "
                 },
                 Version = Version
