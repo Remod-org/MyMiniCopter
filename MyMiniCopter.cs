@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.0")]
+    [Info("My Mini Copter", "RFC1920", "0.4.1")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -186,7 +186,7 @@ namespace Oxide.Plugins
             BasePlayer bplayer = player.Object as BasePlayer;
             if (storedData.playerminiID.ContainsKey(bplayer.userID))
             {
-                if (configData.Global.allowRespawnWhenActive)
+                if (!configData.Global.allowRespawnWhenActive)
                 {
                     Message(player, "AlreadyMsg");
                     return;
