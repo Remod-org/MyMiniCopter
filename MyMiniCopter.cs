@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.1")]
+    [Info("My Mini Copter", "RFC1920", "0.4.2")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -67,17 +67,34 @@ namespace Oxide.Plugins
         #region loadunload
         private void OnServerInitialized()
         {
+            LoadConfigVariables();
             if (((configData.Global.cooldownmin * 60) <= 120) && configData.Global.useCooldown)
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
                 configData.Global.cooldownmin = 2;
             }
+            SaveConfig(configData);
 
-            AddCovalenceCommand("mymini", "SpawnMyMinicopterCommand");
-            AddCovalenceCommand("nomini", "KillMyMinicopterCommand");
-            AddCovalenceCommand("gmini",  "GetMyMiniMyCopterCommand");
-            AddCovalenceCommand("wmini",  "WhereisMyMiniMyCopterCommand");
-            AddCovalenceCommand("remini", "ReSpawnMyMinicopterCommand");
+            LoadData();
+            foreach (KeyValuePair<ulong, uint> playerMini in storedData.playerminiID)
+            {
+                MiniCopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as MiniCopter;
+                if (miniCopter == null) continue;
+
+                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited))
+                {
+                    miniCopter.fuelPerSec = 0f;
+                    StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
+                    if (fuelCan?.IsValid() == true)
+                    {
+                        if (configData.Global.debug) Puts($"Setting fuel for MiniCopter {playerMini.Value.ToString()} owned by {playerMini.Key.ToString()}.");
+                        ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
+                        fuelCan.inventory.MarkDirty();
+                    }
+                    continue;
+                }
+                miniCopter.fuelPerSec = configData.Global.stdFuelConsumption;
+            }
         }
 
         private void OnNewSave()
@@ -86,29 +103,20 @@ namespace Oxide.Plugins
             SaveData();
         }
 
-        private void Loaded()
+        private void Init()
         {
-            LoadConfigVariables();
+            AddCovalenceCommand("mymini", "SpawnMyMinicopterCommand");
+            AddCovalenceCommand("nomini", "KillMyMinicopterCommand");
+            AddCovalenceCommand("gmini",  "GetMyMiniMyCopterCommand");
+            AddCovalenceCommand("wmini",  "WhereisMyMiniMyCopterCommand");
+            AddCovalenceCommand("remini", "ReSpawnMyMinicopterCommand");
+
             permission.RegisterPermission(MinicopterSpawn, this);
             permission.RegisterPermission(MinicopterFetch, this);
             permission.RegisterPermission(MinicopterWhere, this);
             permission.RegisterPermission(MinicopterAdmin, this);
             permission.RegisterPermission(MinicopterCooldown, this);
             permission.RegisterPermission(MinicopterUnlimited, this);
-            LoadData();
-
-            foreach (KeyValuePair<ulong, uint> x in storedData.playerminiID)
-            {
-                BaseNetworkable vehicleMini = BaseNetworkable.serverEntities.Find(x.Value);
-                if (vehicleMini == null) continue;
-                MiniCopter miniCopter = vehicleMini as MiniCopter;
-                if (miniCopter == null) continue;
-                IPlayer player = covalence.Players.FindPlayer(x.Key.ToString());
-                if (player == null) continue;
-
-                miniCopter.fuelPerSec = permission.UserHasPermission(player.Id, MinicopterUnlimited) ? 0f : configData.Global.stdFuelConsumption;
-            }
-            SaveConfig(configData);
         }
 
         private void Unload()
@@ -476,6 +484,7 @@ namespace Oxide.Plugins
                     if (fuelCan?.IsValid() == true)
                     {
                         ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
+                        fuelCan.inventory.MarkDirty();
                         fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
                     }
                 }
@@ -486,6 +495,7 @@ namespace Oxide.Plugins
                 if (fuelCan?.IsValid() == true)
                 {
                     ItemManager.CreateByItemID(-946369541, Convert.ToInt32(configData.Global.startingFuel))?.MoveToContainer(fuelCan.inventory);
+                    fuelCan.inventory.MarkDirty();
                 }
             }
             else
@@ -879,6 +889,11 @@ namespace Oxide.Plugins
         private void LoadData()
         {
             storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
+            if (storedData == null)
+            {
+                storedData = new StoredData();
+                SaveData();
+            }
         }
         #endregion
     }
