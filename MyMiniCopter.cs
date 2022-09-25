@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.3")]
+    [Info("My Mini Copter", "RFC1920", "0.4.4")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -282,19 +282,19 @@ namespace Oxide.Plugins
         private void SpawnMyMinicopterCommand(IPlayer player, string command, string[] args)
         {
             double secondsSinceEpoch = DateTime.UtcNow.Subtract(epoch).TotalSeconds;
+            BasePlayer bplayer = player.Object as BasePlayer;
 
             if (!player.HasPermission(MinicopterSpawn))
             {
                 Message(player, "NoPermMsg");
                 return;
             }
-            if (IsRaidBlocked(player as BasePlayer))
+            if (IsRaidBlocked(bplayer))
             {
                 Message(player, "RaidBlockMsg");
                 return;
             }
 
-            BasePlayer bplayer = player.Object as BasePlayer;
             if (storedData.playerminiID.ContainsKey(bplayer.userID))
             {
                 if (!configData.Global.allowRespawnWhenActive)
@@ -375,7 +375,7 @@ namespace Oxide.Plugins
                 Message(player, "NoPermMsg");
                 return;
             }
-            if (IsRaidBlocked(player as BasePlayer))
+            if (IsRaidBlocked(bplayer))
             {
                 Message(player, "RaidBlockMsg");
                 return;
@@ -501,7 +501,7 @@ namespace Oxide.Plugins
         [Command("remini")]
         private void ReSpawnMyMinicopterCommand(IPlayer player, string command, string[] args)
         {
-            if (IsRaidBlocked(player as BasePlayer))
+            if (IsRaidBlocked(player.Object as BasePlayer))
             {
                 Message(player, "RaidBlockMsg");
                 return;
@@ -518,7 +518,7 @@ namespace Oxide.Plugins
                 Message(player, "NoPermMsg");
                 return;
             }
-            if (IsRaidBlocked(player as BasePlayer))
+            if (IsRaidBlocked(player.Object as BasePlayer))
             {
                 Message(player, "RaidBlockMsg");
                 return;
