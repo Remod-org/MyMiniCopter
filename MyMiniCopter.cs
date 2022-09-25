@@ -1,12 +1,10 @@
-#region License (GPL v3)
+#region License (GPL v2)
 /*
     DESCRIPTION
-    Copyright (c) 2020 RFC1920 <desolationoutpostpve@gmail.com>
+    Copyright (c) 2022 RFC1920 <desolationoutpostpve@gmail.com>
 
     This program is free software; you can redistribute it and/or
-    modify it under the terms of the GNU General Public License
-    as published by the Free Software Foundation; either version 2
-    of the License, or (at your option) any later version.
+    modify it under the terms of the GNU General Public License v2.0
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,7 +17,32 @@
 
     Optionally you can also view the license at <http://www.gnu.org/licenses/>.
 */
-#endregion License Information (GPL v3)
+#endregion License Information (GPL v2)
+#region License Notice
+/*
+ * Hovering class modified from code at https://umod.org/plugins/helicopter-hover,
+   originally licensed under the following license:
+
+   MIT License
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+ */
+#endregion
 using UnityEngine;
 using System.Collections.Generic;
 using Oxide.Core;
@@ -28,14 +51,19 @@ using System.Linq;
 using Oxide.Core.Plugins;
 using System.Text;
 using Oxide.Core.Libraries.Covalence;
+using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.2")]
+    [Info("My Mini Copter", "RFC1920", "0.4.3")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
     {
+        [PluginReference]
+        private readonly Plugin NoEscape;
+        public static MyMiniCopter Instance;
+
         private const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
         private ConfigData configData;
 
@@ -45,10 +73,13 @@ namespace Oxide.Plugins
         private const string MinicopterAdmin = "myminicopter.admin";
         private const string MinicopterCooldown = "myminicopter.cooldown";
         private const string MinicopterUnlimited = "myminicopter.unlimited";
+        private const string MinicopterCanHover = "myminicopter.canhover";
 
         private static LayerMask layerMask = LayerMask.GetMask("Terrain", "World", "Construction");
 
         private Dictionary<ulong, ulong> currentMounts = new Dictionary<ulong, ulong>();
+        private Dictionary<int, Hovering> hovers = new Dictionary<int, Hovering>();
+        private Dictionary<ulong, DateTime> hoverDelayTimers = new Dictionary<ulong, DateTime>();
         private static readonly DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
 
         private class StoredData
@@ -81,13 +112,17 @@ namespace Oxide.Plugins
                 MiniCopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as MiniCopter;
                 if (miniCopter == null) continue;
 
+                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
+                {
+                    hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
+                }
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited))
                 {
                     miniCopter.fuelPerSec = 0f;
                     StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
                     if (fuelCan?.IsValid() == true)
                     {
-                        if (configData.Global.debug) Puts($"Setting fuel for MiniCopter {playerMini.Value.ToString()} owned by {playerMini.Key.ToString()}.");
+                        DoLog($"Setting fuel for MiniCopter {playerMini.Value} owned by {playerMini.Key}.");
                         ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
                         fuelCan.inventory.MarkDirty();
                     }
@@ -105,11 +140,14 @@ namespace Oxide.Plugins
 
         private void Init()
         {
+            Instance = this;
+
             AddCovalenceCommand("mymini", "SpawnMyMinicopterCommand");
             AddCovalenceCommand("nomini", "KillMyMinicopterCommand");
             AddCovalenceCommand("gmini",  "GetMyMiniMyCopterCommand");
             AddCovalenceCommand("wmini",  "WhereisMyMiniMyCopterCommand");
             AddCovalenceCommand("remini", "ReSpawnMyMinicopterCommand");
+            AddCovalenceCommand("hmini",  "HoverMyMinicopterCommand");
 
             permission.RegisterPermission(MinicopterSpawn, this);
             permission.RegisterPermission(MinicopterFetch, this);
@@ -117,11 +155,13 @@ namespace Oxide.Plugins
             permission.RegisterPermission(MinicopterAdmin, this);
             permission.RegisterPermission(MinicopterCooldown, this);
             permission.RegisterPermission(MinicopterUnlimited, this);
+            permission.RegisterPermission(MinicopterCanHover, this);
         }
 
         private void Unload()
         {
             SaveData();
+            foreach (KeyValuePair<int, Hovering> hover in hovers) UnityEngine.Object.Destroy(hover.Value);
         }
         #endregion
 
@@ -138,13 +178,20 @@ namespace Oxide.Plugins
                 {"SpawnedMsg", "Your mini copter has spawned !\nUse command '/nomini' to remove it."},
                 {"KilledMsg", "Your mini copter has been removed/killed."},
                 {"NoPermMsg", "You are not allowed to do this."},
+                {"RaidBlockMsg", "You are not allowed to do this while raid blocked!"},
                 {"SpawnUsage", "You need to supply a valid SteamId."},
                 {"NoFoundMsg", "You do not have an active copter."},
                 {"FoundMsg", "Your copter is located at {0}."},
                 {"CooldownMsg", "You must wait {0} seconds before spawning a new mini copter."},
                 {"DistanceMsg", "You must be within {0} meters of your mini copter."},
                 {"RunningMsg", "Your copter is currently flying and cannot be fetched."},
-                {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."}
+                {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."},
+                {"NotFlying", "The copter is not flying" },
+                {"NoPermission", "You do not have permission to hover" },
+                {"HoverEnabled", "MiniCopter hover: enabled" },
+                {"HoverDisabled", "MiniCopter hover: disabled" },
+                {"NotInHelicopter", "You are not in a minicopter" },
+                {"NoPassengerToggle", "Passengers cannot toggle hover" }
             }, this, "en");
 
             lang.RegisterMessages(new Dictionary<string, string>
@@ -156,13 +203,63 @@ namespace Oxide.Plugins
                 {"SpawnedMsg", "Votre mini hélico est arrivé !\nUtilisez la commande '/nomini' pour le supprimer."},
                 {"KilledMsg", "Votre mini hélico a disparu du monde."},
                 {"NoPermMsg", "Vous n'êtes pas autorisé."},
+                {"RaidBlockMsg", "Vous n'êtes pas autorisé à faire cela pendant que le raid est bloqué!"},
                 {"SpawnUsage", "Vous devez fournir un SteamId valide."},
                 {"NoFoundMsg", "Vous n'avez pas de mini hélico actif"},
                 {"FoundMsg", "Votre mini hélico est situé à {0}."},
                 {"CooldownMsg", "Vous devez attendre {0} secondes avant de créer un nouveau mini hélico."},
                 {"DistanceMsg", "Vous devez être à moins de {0} mètres de votre mini-hélico."},
-                {"BlockedMsg", "Vous ne pouvez pas faire apparaître ou aller chercher votre hélico lorsque la construction est bloquée."}
+                {"BlockedMsg", "Vous ne pouvez pas faire apparaître ou aller chercher votre hélico lorsque la construction est bloquée."},
+                {"NotFlying", "L'hélicoptère ne vole pas"},
+                {"NoPermission", "Vous n'êtes pas autorisé à survoler" },
+                {"HoverEnabled", "Vol stationnaire mini hélicoptère: activé" },
+                {"HoverDisabled", "Vol stationnaire mini hélicoptère: désactivé" },
+                {"NotInHelicopter", "Vous n'êtes pas dans un mini hélicoptère" },
+                {"NoPassengerToggle", "Les passagers ne peuvent pas basculer en vol stationnaire" }
             }, this, "fr");
+        }
+
+        private void OnPlayerInput(BasePlayer player, InputState input)
+        {
+            if (player == null || input == null) return;
+            if (!configData.Global.UseKeystrokeForHover) return;
+            if (!permission.UserHasPermission(player.UserIDString, MinicopterCanHover)) return;
+            //Puts($"OnPlayerInput: {input.current.buttons}");
+            if (!player.isMounted) return;
+            int keystroke = configData.Global.HoverKey > 0 ? configData.Global.HoverKey : (int)BUTTON.FIRE_THIRD; // MMB
+            bool stabilize = input.current.buttons == (int)BUTTON.BACKWARD;
+
+            if (input.current.buttons != keystroke && !stabilize) return;
+            if (hoverDelayTimers.ContainsKey(player.userID))
+            {
+                if (DateTime.Now - hoverDelayTimers[player.userID] < TimeSpan.FromMilliseconds(1000))
+                {
+                    return;
+                }
+                hoverDelayTimers.Remove(player.userID);
+            }
+            hoverDelayTimers.Add(player.userID, DateTime.Now);
+
+            BaseHelicopterVehicle mini = player.GetMountedVehicle() as BaseHelicopterVehicle;
+            if (storedData.playerminiID.ContainsKey(player.userID) && mini.net.ID == storedData.playerminiID[player.userID])
+            {
+                if (player != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
+                {
+                    Message(player.IPlayer, "NoPassengerToggle");
+                    return;
+                }
+
+                if (mini.IsEngineOn() && mini.GetDriver())
+                {
+                    if (stabilize)
+                    {
+                        hovers[mini.GetInstanceID()]?.Stabilize();
+                        return;
+                    }
+                    DoLog($"Finding hover object for {mini.net.ID}");
+                    hovers[mini.GetInstanceID()]?.ToggleHover();
+                }
+            }
         }
 
         private string Lang(string key, string id = default(string), params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
@@ -191,6 +288,12 @@ namespace Oxide.Plugins
                 Message(player, "NoPermMsg");
                 return;
             }
+            if (IsRaidBlocked(player as BasePlayer))
+            {
+                Message(player, "RaidBlockMsg");
+                return;
+            }
+
             BasePlayer bplayer = player.Object as BasePlayer;
             if (storedData.playerminiID.ContainsKey(bplayer.userID))
             {
@@ -211,7 +314,7 @@ namespace Oxide.Plugins
             bool hascooldown = player.HasPermission(MinicopterCooldown);
             if (!configData.Global.useCooldown) hascooldown = false;
 
-            int secsleft = 0;
+            int secsleft;
             if (hascooldown)
             {
                 if (!storedData.playercounter.ContainsKey(bplayer.userID))
@@ -226,7 +329,7 @@ namespace Oxide.Plugins
 
                     if ((secondsSinceEpoch - count) > (configData.Global.cooldownmin * 60))
                     {
-                        if (configData.Global.debug) Puts("Player reached cooldown.  Clearing data.");
+                        DoLog("Player reached cooldown.  Clearing data.");
                         storedData.playercounter.Remove(bplayer.userID);
                         SaveData();
                     }
@@ -236,7 +339,7 @@ namespace Oxide.Plugins
 
                         if (secsleft > 0)
                         {
-                            if (configData.Global.debug) Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
+                            DoLog($"Player DID NOT reach cooldown. Still {secsleft} secs left.");
                             Message(player, "CooldownMsg", secsleft.ToString());
                             return;
                         }
@@ -272,6 +375,12 @@ namespace Oxide.Plugins
                 Message(player, "NoPermMsg");
                 return;
             }
+            if (IsRaidBlocked(player as BasePlayer))
+            {
+                Message(player, "RaidBlockMsg");
+                return;
+            }
+
             if (storedData.playerminiID.ContainsKey(bplayer.userID))
             {
                 uint findme;
@@ -352,10 +461,51 @@ namespace Oxide.Plugins
             }
         }
 
+        [Command("hmini")]
+        private void HoverMyMinicopterCommand(IPlayer player, string command, string[] args)
+        {
+            if (!player.HasPermission(MinicopterCanHover))
+            {
+                Message(player, "NoPermMsg");
+                return;
+            }
+            ulong playerId = ulong.Parse(player.Id);
+            if (hoverDelayTimers.ContainsKey(playerId))
+            {
+                if (DateTime.Now - hoverDelayTimers[playerId] < TimeSpan.FromMilliseconds(1000))
+                {
+                    return;
+                }
+                hoverDelayTimers.Remove(playerId);
+            }
+            hoverDelayTimers.Add(playerId, DateTime.Now);
+
+            BaseHelicopterVehicle mini = (player.Object as BasePlayer).GetMountedVehicle() as BaseHelicopterVehicle;
+            if (storedData.playerminiID.ContainsKey(playerId) && mini.net.ID == storedData.playerminiID[playerId])
+            {
+                if ((player.Object as BasePlayer) != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
+                {
+                    Message(player, "NoPassengerToggle");
+                    return;
+                }
+
+                if (mini.IsEngineOn() && mini.GetDriver())
+                {
+                    DoLog($"Finding hover object for {mini.net.ID}");
+                    hovers[mini.GetInstanceID()]?.ToggleHover();
+                }
+            }
+        }
+
         // Chat despawn
         [Command("remini")]
         private void ReSpawnMyMinicopterCommand(IPlayer player, string command, string[] args)
         {
+            if (IsRaidBlocked(player as BasePlayer))
+            {
+                Message(player, "RaidBlockMsg");
+                return;
+            }
             KillMyMinicopterCommand(player, "nomini", new string[0]);
             SpawnMyMinicopterCommand(player, "mymini", new string[0]);
         }
@@ -366,6 +516,11 @@ namespace Oxide.Plugins
             if (!player.HasPermission(MinicopterSpawn))
             {
                 Message(player, "NoPermMsg");
+                return;
+            }
+            if (IsRaidBlocked(player as BasePlayer))
+            {
+                Message(player, "RaidBlockMsg");
                 return;
             }
             KillMyMinicopterPlease(player.Object as BasePlayer);
@@ -381,7 +536,7 @@ namespace Oxide.Plugins
             {
                 if (arg.Args == null)
                 {
-                    Puts("You need to supply a valid SteamId.");
+                    DoLog("You need to supply a valid SteamId.");
                     return;
                 }
             }
@@ -417,7 +572,7 @@ namespace Oxide.Plugins
             {
                 if (arg.Args == null)
                 {
-                    Puts("You need to supply a valid SteamId.");
+                    DoLog("You need to supply a valid SteamId.");
                     return;
                 }
             }
@@ -466,12 +621,15 @@ namespace Oxide.Plugins
             if (position == default(Vector3)) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
             if (vehicleMini == null) return;
-            BaseEntity miniEntity = vehicleMini as BaseEntity;
-            miniEntity.OwnerID = player.userID;
+            vehicleMini.OwnerID = player.userID;
 
             MiniCopter miniCopter = vehicleMini as MiniCopter;
 
             vehicleMini.Spawn();
+            if (permission.UserHasPermission(player.UserIDString, MinicopterCanHover))
+            {
+                hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
+            }
             if (permission.UserHasPermission(player.UserIDString, MinicopterUnlimited))
             {
                 // Set fuel requirements to 0
@@ -505,14 +663,13 @@ namespace Oxide.Plugins
 
             SendReply(player, Lang("SpawnedMsg"));
             uint minicopteruint = vehicleMini.net.ID;
-            if (configData.Global.debug) Puts($"SPAWNED MINICOPTER {minicopteruint.ToString()} for player {player.displayName} OWNER {miniEntity.OwnerID}");
+            DoLog($"SPAWNED MINICOPTER {minicopteruint} for player {player.displayName} OWNER {vehicleMini.OwnerID}");
             storedData.playerminiID.Remove(player.userID);
             ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
             currentMounts.Remove(myKey);
             storedData.playerminiID.Add(player.userID, minicopteruint);
             SaveData();
 
-            miniEntity = null;
             miniCopter = null;
         }
 
@@ -558,9 +715,18 @@ namespace Oxide.Plugins
             }
             else if (!foundcopter)
             {
-                if (configData.Global.debug) Puts("Player too far from copter to destroy.");
+                DoLog("Player too far from copter to destroy.");
                 SendReply(player, Lang("DistanceMsg", null, configData.Global.mindistance));
             }
+        }
+
+        private bool IsRaidBlocked(BasePlayer player)
+        {
+            if (configData.Global.useNoEscape && NoEscape)
+            {
+                return (bool) NoEscape?.CallHook("IsRaidBlocked", player);
+            }
+            return false;
         }
         #endregion
 
@@ -571,15 +737,15 @@ namespace Oxide.Plugins
             MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
             if (mini != null)
             {
-                if (configData.Global.debug) Puts($"Player {player.userID.ToString()} wants to mount seat id {mountable.net.ID.ToString()}");
+                DoLog($"Player {player.userID} wants to mount seat id {mountable.net.ID}");
                 uint id = mountable.net.ID - 2;
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter and seats in storedData
-                    if (configData.Global.debug) Puts($"  Is this our copter with ID {id.ToString()}?");
+                    DoLog($"  Is this our copter with ID {id}?");
                     if (storedData.playerminiID.ContainsValue(id))
                     {
-                        if (configData.Global.debug) Puts("    yes, it is...");
+                        DoLog("    yes, it is...");
                         if (currentMounts.ContainsValue(player.userID))
                         {
                             if (!player.GetMounted())
@@ -601,18 +767,18 @@ namespace Oxide.Plugins
             MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
             if (mini != null)
             {
-                if (configData.Global.debug) Puts($"Player {player.userID.ToString()} mounted seat id {mountable.net.ID.ToString()}");
+                DoLog($"Player {player.userID} mounted seat id {mountable.net.ID}");
                 // Check this seat's ID to see if the copter is one of ours
                 uint id = mountable.net.ID - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter in storedData
-                    if (configData.Global.debug) Puts($"Is this our copter with ID {id.ToString()}?");
+                    DoLog($"Is this our copter with ID {id}?");
                     if (storedData.playerminiID.ContainsValue(id))
                     {
-                        if (configData.Global.debug) Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+                        DoLog($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID} on {id}");
                         currentMounts.Remove(mountable.net.ID);
-                        if (configData.Global.debug) Puts($"Adding {player.displayName}'s ID {player.userID} to currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+                        DoLog($"Adding {player.displayName}'s ID {player.userID} to currentMounts for seat {mountable.net.ID} on {id}");
                         currentMounts.Add(mountable.net.ID, player.userID);
                         break;
                     }
@@ -634,7 +800,7 @@ namespace Oxide.Plugins
                     {
                         if (!configData.Global.allowDriverDismountWhileFlying)
                         {
-                            if (configData.Global.debug) Puts("DENY PILOT DISMOUNT");
+                            DoLog("DENY PILOT DISMOUNT");
                             return false;
                         }
                         ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
@@ -644,7 +810,7 @@ namespace Oxide.Plugins
                     {
                         if (!configData.Global.allowPassengerDismountWhileFlying)
                         {
-                            if (configData.Global.debug) Puts("DENY PASSENGER DISMOUNT");
+                            DoLog("DENY PASSENGER DISMOUNT");
                             return false;
                         }
                         ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
@@ -660,15 +826,15 @@ namespace Oxide.Plugins
             MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
             if (mini != null)
             {
-                if (configData.Global.debug) Puts($"Player {player.userID.ToString()} dismounted seat id {mountable.net.ID.ToString()}");
+                DoLog($"Player {player.userID} dismounted seat id {mountable.net.ID}");
                 uint id = mountable.net.ID - 2;
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter and seats in storedData
-                    if (configData.Global.debug) Puts($"Is this our copter with ID {id.ToString()}?");
+                    DoLog($"Is this our copter with ID {id}?");
                     if (storedData.playerminiID.ContainsValue(id))
                     {
-                        if (configData.Global.debug) Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
+                        DoLog($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID} on {id}");
                         currentMounts.Remove(mountable.net.ID);
                         break;
                     }
@@ -691,7 +857,7 @@ namespace Oxide.Plugins
 
             if (!storedData.playerminiID.ContainsValue(entity.net.ID))
             {
-                if (configData.Global.debug) Puts("KILLED non-plugin minicopter");
+                DoLog("KILLED non-plugin minicopter");
                 return;
             }
             foreach (KeyValuePair<ulong, uint> item in storedData.playerminiID)
@@ -709,6 +875,7 @@ namespace Oxide.Plugins
                 currentMounts.Remove(entity.net.ID);
                 currentMounts.Remove(entity.net.ID + 1);
                 currentMounts.Remove(entity.net.ID + 2);
+                hovers.Remove(entity.GetInstanceID());
                 SaveData();
             }
         }
@@ -724,11 +891,11 @@ namespace Oxide.Plugins
                 {
                     if (configData.Global.copterDecay)
                     {
-                        if (configData.Global.debug) Puts($"Enabling standard decay for spawned minicopter {entity.net.ID.ToString()}.");
+                        DoLog($"Enabling standard decay for spawned minicopter {entity.net.ID}.");
                     }
                     else
                     {
-                        if (configData.Global.debug) Puts($"Disabling decay for spawned minicopter {entity.net.ID.ToString()}.");
+                        DoLog($"Disabling decay for spawned minicopter {entity.net.ID}.");
                         hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
                     }
                     return null;
@@ -763,12 +930,12 @@ namespace Oxide.Plugins
                         BasePlayer mounted = mountPointInfo.mountable.GetMounted();
                         if (mounted)
                         {
-                            if (configData.Global.debug) Puts("Copter owner sleeping but another one is mounted - cannot destroy copter");
+                            DoLog("Copter owner sleeping but another one is mounted - cannot destroy copter");
                             return;
                         }
                     }
                 }
-                if (configData.Global.debug) Puts("Copter owner sleeping - destroying copter");
+                DoLog("Copter owner sleeping - destroying copter");
                 tokill.Kill();
                 storedData.playerminiID.Remove(player.userID);
                 ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
@@ -799,12 +966,17 @@ namespace Oxide.Plugins
             player.ChatMessage(sb.ToString());
         }
 
+        private void DoLog(string message)
+        {
+            if (configData.Global.debug) Puts(message);
+        }
         #region config
         public class Global
         {
             public bool allowWhenBlocked;
             public bool allowRespawnWhenActive;
             public bool useCooldown;
+            public bool useNoEscape;
             public bool copterDecay;
             public bool allowDamage;
             public bool killOnSleep;
@@ -819,6 +991,15 @@ namespace Oxide.Plugins
             public float minDismountHeight;
             public float startingFuel;
             public string Prefix; // Chat prefix
+            public bool TimedHover;
+            public bool DisableHoverOnDismount;
+            public bool EnableRotationOnHover;
+            public bool PassengerCanToggleHover;
+            public bool HoverWithoutEngine;
+            public bool UseFuelOnHover;
+            public float HoverDuration;
+            public bool UseKeystrokeForHover;
+            public int HoverKey;
         }
 
         public class ConfigData
@@ -839,6 +1020,20 @@ namespace Oxide.Plugins
             if (configData.Version < new VersionNumber(0, 4, 0))
             {
                 configData.Global.allowDamage = true;
+            }
+
+            if (configData.Version < new VersionNumber(0, 4, 3))
+            {
+                configData.Global.useNoEscape = false;
+                configData.Global.EnableRotationOnHover = true;
+                configData.Global.DisableHoverOnDismount = true;
+                configData.Global.TimedHover = false;
+                configData.Global.HoverDuration = 60;
+                configData.Global.UseFuelOnHover = true;
+                configData.Global.PassengerCanToggleHover = false;
+                configData.Global.HoverWithoutEngine = false;
+                configData.Global.UseKeystrokeForHover = false;
+                configData.Global.HoverKey = 134217728; // MMB / BUTTON.FIRE_THIRD
             }
 
             configData.Version = Version;
@@ -868,7 +1063,17 @@ namespace Oxide.Plugins
                     minDismountHeight = 7f,
                     startingFuel = 0f,
                     debug = false,
-                    Prefix = "[My MiniCopter]: "
+                    Prefix = "[My MiniCopter]: ",
+                    useNoEscape = false,
+                    EnableRotationOnHover = true,
+                    DisableHoverOnDismount = true,
+                    PassengerCanToggleHover = false,
+                    HoverWithoutEngine = false,
+                    UseFuelOnHover = true,
+                    TimedHover = false,
+                    HoverDuration = 60,
+                    UseKeystrokeForHover = false,
+                    HoverKey = 134217728
                 },
                 Version = Version
             };
@@ -893,6 +1098,163 @@ namespace Oxide.Plugins
             {
                 storedData = new StoredData();
                 SaveData();
+            }
+        }
+        #endregion
+
+        #region Hover
+        private class Hovering : MonoBehaviour
+        {
+            // Portions borrowed from HelicopterHover plugin but modified
+            private BaseHelicopterVehicle _helicopter;
+            MiniCopter _minicopter;
+            Rigidbody _rb;
+
+            Timer _timedHoverTimer;
+            Timer _fuelUseTimer;
+
+            Coroutine _hoverCoroutine;
+            VehicleEngineController<MiniCopter> _engineController;
+
+            private bool isHovering => _rb.constraints == RigidbodyConstraints.FreezePositionY;
+
+            public void Awake()
+            {
+                if (!TryGetComponent(out _helicopter))
+                {
+                    Instance.DoLog("Failed to get BHV component for MyMiniCopter");
+                    Instance.hovers.Remove(_helicopter.GetInstanceID());
+                    DestroyImmediate(this);
+                    return;
+                }
+                if (!TryGetComponent(out _rb))
+                {
+                    Instance.DoLog("Failed to get RB component for MyMiniCopter");
+                    Instance.hovers.Remove(_helicopter.GetInstanceID());
+                    DestroyImmediate(this);
+                    return;
+                }
+                _minicopter = GetComponent<MiniCopter>();
+                _engineController = _minicopter?.engineController;
+            }
+
+            public void ToggleHover()
+            {
+                Instance.DoLog("ToggleHover");
+                if (isHovering) StopHover();
+                else StartHover();
+
+                foreach (BaseVehicle.MountPointInfo info in _helicopter.mountPoints)
+                {
+                    BasePlayer player = info.mountable.GetMounted();
+                    if (player != null) Instance.PrintToChat(player, Instance.lang.GetMessage(isHovering ? "HoverEnabled" : "HoverDisabled", Instance, player.UserIDString));
+                }
+            }
+
+            public void StartHover()
+            {
+                Instance.DoLog("StartHover");
+                _rb.constraints = RigidbodyConstraints.FreezePositionY;
+                Instance.DoLog("Setting Freeze Rotation");
+                if (!Instance.configData.Global.EnableRotationOnHover) _rb.freezeRotation = true;
+
+                Instance.DoLog("Finishing Engine Start");
+                _engineController?.FinishStartingEngine();
+
+                Instance.DoLog("Starting Hover Coroutine");
+                if (_helicopter != null) _hoverCoroutine = ServerMgr.Instance.StartCoroutine(HoveringCoroutine());
+            }
+
+            public void StopHover()
+            {
+                Instance.DoLog("StopHover");
+                _rb.constraints = RigidbodyConstraints.None;
+                Instance.DoLog("Disabling Freeze Rotation");
+                _rb.freezeRotation = false;
+
+                Instance.DoLog("Stopping Hover Coroutine");
+                if (_hoverCoroutine != null) ServerMgr.Instance.StopCoroutine(_hoverCoroutine);
+                if (_timedHoverTimer != null) _timedHoverTimer.Destroy();
+                if (_fuelUseTimer != null) _fuelUseTimer.Destroy();
+            }
+
+            IEnumerator HoveringCoroutine() //Keep engine running and manage fuel
+            {
+                if (Instance.configData.Global.TimedHover) _timedHoverTimer = Instance.timer.Once(Instance.configData.Global.HoverDuration, () => StopHover());
+
+                EntityFuelSystem fuelSystem = _minicopter?.GetFuelSystem();
+                /* Using GetDriver, the engine will begin stalling and then die in a few seconds if the playerowner moves to the passenger seat.
+                 * - The engine stops mid-air, which is not realistic.
+                 * - The playerowner can move back and the engine should start again.
+                 * Using GetMounted, the engine also stops mid-air.
+                 * - The playerowner can move back and restart the engine.
+                 * Can optionally just kill the hover if the engine stops for any reason - see FixedUpdate.
+                 */
+                BasePlayer player = _helicopter.GetDriver();
+
+                if (fuelSystem != null && !Instance.permission.UserHasPermission(player.UserIDString, "minicopter.unlimited"))
+                {
+                    if (Instance.configData.Global.UseFuelOnHover) _fuelUseTimer = Instance.timer.Every(1f, () =>
+                    {
+                        if (fuelSystem.HasFuel() && _minicopter.GetDriver() == null) fuelSystem.TryUseFuel(1f, _minicopter.fuelPerSec);
+                        else if (!fuelSystem.HasFuel()) _fuelUseTimer.Destroy();
+                    });
+                }
+
+                //Keep engine on
+                while (isHovering)
+                {
+                    if (!(_engineController?.IsOn ?? false) && (_helicopter.AnyMounted() || !Instance.configData.Global.DisableHoverOnDismount)) _engineController?.FinishStartingEngine();
+
+                    if (fuelSystem != null)
+                    {
+                        if (!fuelSystem.HasFuel() && !Instance.permission.UserHasPermission(player.UserIDString, "minicopter.unlimited")) //If no fuel, stop hovering
+                        {
+                            StopHover();
+                            _engineController?.StopEngine();
+
+                            yield break;
+                        }
+                    }
+
+                    yield return null;
+                }
+            }
+
+            public void Stabilize()
+            {
+                if (!isHovering) return;
+                Instance.DoLog("Fixing rotation to stabilize position");
+                Quaternion q = Quaternion.FromToRotation(_minicopter.transform.up, Vector3.up) * _minicopter.transform.rotation;
+                _minicopter.transform.rotation = Quaternion.Slerp(_minicopter.transform.rotation, q, Time.deltaTime * 3.5f);
+            }
+
+            private void FixedUpdate()
+            {
+                bool found = false;
+                foreach (BaseVehicle.MountPointInfo info in _helicopter.mountPoints)
+                {
+                    if (info.mountable.GetMounted())
+                    {
+                        found = true;
+                    }
+                }
+
+                if (!found && isHovering && Instance.configData.Global.DisableHoverOnDismount)
+                {
+                    StopHover();
+                }
+                else if (_engineController.IsOff && isHovering && !Instance.configData.Global.HoverWithoutEngine)
+                {
+                    StopHover();
+                }
+            }
+
+            private void OnDestroy() //Stop any timers or coroutines persisting after destruction or plugin unload
+            {
+                if (_hoverCoroutine != null) ServerMgr.Instance.StopCoroutine(_hoverCoroutine);
+                _timedHoverTimer?.Destroy();
+                _fuelUseTimer?.Destroy();
             }
         }
         #endregion
