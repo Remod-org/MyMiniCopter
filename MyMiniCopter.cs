@@ -55,13 +55,13 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.4")]
+    [Info("My Mini Copter", "RFC1920", "0.4.5")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
     {
         [PluginReference]
-        private readonly Plugin NoEscape;
+        private readonly Plugin NoEscape, Friends, Clans;
         public static MyMiniCopter Instance;
 
         private const string prefab = "assets/content/vehicles/minicopter/minicopter.entity.prefab";
@@ -187,6 +187,7 @@ namespace Oxide.Plugins
                 {"RunningMsg", "Your copter is currently flying and cannot be fetched."},
                 {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."},
                 {"NotFlying", "The copter is not flying" },
+                {"NoAccess", "You do not have permission to access this minicopter" },
                 {"NoPermission", "You do not have permission to hover" },
                 {"HoverEnabled", "MiniCopter hover: enabled" },
                 {"HoverDisabled", "MiniCopter hover: disabled" },
@@ -735,29 +736,35 @@ namespace Oxide.Plugins
         {
             if (player == null) return null;
             MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
-            if (mini != null)
+            if (mini == null) return null;
+
+            DoLog($"Player {player.userID} wants to mount seat id {mountable.net.ID}");
+            uint id = mountable.net.ID - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
+            for (int i = 0; i < 3; i++)
             {
-                DoLog($"Player {player.userID} wants to mount seat id {mountable.net.ID}");
-                uint id = mountable.net.ID - 2;
-                for (int i = 0; i < 3; i++)
+                // Find copter and seats in storedData
+                DoLog($"  Is this our copter with ID {id}?");
+                if (storedData.playerminiID.ContainsValue(id))
                 {
-                    // Find copter and seats in storedData
-                    DoLog($"  Is this our copter with ID {id}?");
-                    if (storedData.playerminiID.ContainsValue(id))
+                    DoLog("    yes, it is...");
+                    if (!IsFriend(player.userID, mountable.OwnerID))
                     {
-                        DoLog("    yes, it is...");
-                        if (currentMounts.ContainsValue(player.userID))
-                        {
-                            if (!player.GetMounted())
-                            {
-                                ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
-                                currentMounts.Remove(myKey);
-                            }
-                            return false;
-                        }
+                        DoLog("Player does not own minicopter, and is not a friend of the owner.");
+                        Message(player.IPlayer, "NoAccess");
+                        return false;
                     }
-                    id++;
+
+                    if (currentMounts.ContainsValue(player.userID))
+                    {
+                        if (!player.GetMounted())
+                        {
+                            ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
+                            currentMounts.Remove(myKey);
+                        }
+                        return false;
+                    }
                 }
+                id++;
             }
             return null;
         }
@@ -966,6 +973,44 @@ namespace Oxide.Plugins
             player.ChatMessage(sb.ToString());
         }
 
+        private bool IsFriend(ulong playerid, ulong ownerid)
+        {
+            if (!configData.Global.useFriends && !configData.Global.useClans && !configData.Global.useTeams) return true;
+            if (playerid == ownerid) return true;
+
+            if (configData.Global.useFriends && Friends != null)
+            {
+                object fr = Friends?.CallHook("AreFriends", playerid, ownerid);
+                if (fr != null && (bool)fr)
+                {
+                    return true;
+                }
+            }
+            if (configData.Global.useClans && Clans != null)
+            {
+                string playerclan = (string)Clans?.CallHook("GetClanOf", playerid);
+                string ownerclan  = (string)Clans?.CallHook("GetClanOf", ownerid);
+                if (playerclan == ownerclan && playerclan != null && ownerclan != null)
+                {
+                    return true;
+                }
+            }
+            if (configData.Global.useTeams)
+            {
+                BasePlayer player = BasePlayer.FindByID(playerid);
+                if (player.currentTeam != 0)
+                {
+                    RelationshipManager.PlayerTeam playerTeam = RelationshipManager.ServerInstance.FindTeam(player.currentTeam);
+                    if (playerTeam == null) return false;
+                    if (playerTeam.members.Contains(ownerid))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private void DoLog(string message)
         {
             if (configData.Global.debug) Puts(message);
@@ -977,6 +1022,9 @@ namespace Oxide.Plugins
             public bool allowRespawnWhenActive;
             public bool useCooldown;
             public bool useNoEscape;
+            public bool useFriends;
+            public bool useClans;
+            public bool useTeams;
             public bool copterDecay;
             public bool allowDamage;
             public bool killOnSleep;
