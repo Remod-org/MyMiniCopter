@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.5")]
+    [Info("My Mini Copter", "RFC1920", "0.4.6")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -116,17 +116,33 @@ namespace Oxide.Plugins
                 {
                     hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
                 }
+
+                StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited))
                 {
                     miniCopter.fuelPerSec = 0f;
-                    StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
                     if (fuelCan?.IsValid() == true)
                     {
-                        DoLog($"Setting fuel for MiniCopter {playerMini.Value} owned by {playerMini.Key}.");
-                        ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
-                        fuelCan.inventory.MarkDirty();
+                        if (fuelCan.inventory.IsEmpty())
+                        {
+                            DoLog($"Setting fuel for MiniCopter {playerMini.Value} owned by {playerMini.Key}.");
+                            ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
+                            fuelCan.inventory.MarkDirty();
+                        }
+
+                        // Default for unlimited fuel
+                        fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
+                        if (configData.Global.allowFuelIfUnlimited)
+                        {
+                            fuelCan.SetFlag(BaseEntity.Flags.Locked, false);
+                        }
                     }
                     continue;
+                }
+                else
+                {
+                    // Done here in case player's unlimited permission was revoked.
+                    fuelCan.SetFlag(BaseEntity.Flags.Locked, false);
                 }
                 miniCopter.fuelPerSec = configData.Global.stdFuelConsumption;
             }
