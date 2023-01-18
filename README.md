@@ -66,13 +66,25 @@ no return value;
     "UseKeystrokeForHover": false,
     "HoverKey": 134217728
   },
+  "VIPSettings": {
+    "myminicopter.viplevel1": {
+      "unlimited": false,
+      "canloot": true,
+      "stdFuelConsumption": 0.15,
+      "startingFuel": 20.0,
+      "cooldownmin": 120.0,
+      "mindistance": 0.0,
+      "gminidistance": 0.0
+    }
+  },
   "Version": {
     "Major": 0,
     "Minor": 4,
-    "Patch": 3
+    "Patch": 7
   }
 }
 ```
+
 Global:
 
 - `allowWhenBlocked` -- Set to true to allow player to use /mymini while building blocked
@@ -102,6 +114,39 @@ Global:
 - `HoverKey` -- Set the key used for hover toggling (default is middle mouse button)
 
 Set "Value in meters" for gmini or nomini to 0 to disable the requirement (default).
+
+#### VIPSettings
+
+For each level of VIP access you want, edit or create a copy of the default entry in the config:
+
+```json
+  "VIPSettings": {
+    "myminicopter.viplevel1": {
+      "unlimited": false,
+      "canloot": true,
+      "stdFuelConsumption": 0.15,
+      "startingFuel": 20.0,
+      "cooldownmin": 120.0,
+      "mindistance": 0.0,
+      "gminidistance": 0.0
+    },
+    "myminicopter.viplevel2": {
+      "unlimited": true,
+      "canloot": false,
+      "stdFuelConsumption": 0.0,
+      "startingFuel": 20.0,
+      "cooldownmin": 240.0,
+      "mindistance": 0.0,
+      "gminidistance": 0.0
+    }
+  }
+```
+
+The setting above called myminicopter.viplevel1 is the name of the permission to assign to give a user or group this access.
+
+Below this are the things you can change vs. the default settings.  Overall, they should work the same as the default settings.
+
+You can set the key for each value simply to viplevel1, maxminis, etc.  The code will automatically add myminicopter. to the beginning as is required.
 
 ### Notes on hovering
 

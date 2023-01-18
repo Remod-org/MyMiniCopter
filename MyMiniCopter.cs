@@ -1,7 +1,7 @@
 #region License (GPL v2)
 /*
     DESCRIPTION
-    Copyright (c) 2022 RFC1920 <desolationoutpostpve@gmail.com>
+    Copyright (c) 2023 RFC1920 <desolationoutpostpve@gmail.com>
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License v2.0
@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.6")]
+    [Info("My Mini Copter", "RFC1920", "0.4.7")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -99,6 +99,17 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             LoadConfigVariables();
+
+            if (configData?.VIPSettings.Count > 0)
+            {
+                foreach (string vipperm in configData.VIPSettings.Keys)
+                {
+                    string perm = vipperm.StartsWith($"{Name.ToLower()}.") ? vipperm : $"{Name.ToLower()}.{vipperm}";
+                    DoLog($"Registering vip perm {perm}");
+                    permission.RegisterPermission(perm, this);
+                }
+            }
+
             if (((configData.Global.cooldownmin * 60) <= 120) && configData.Global.useCooldown)
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
@@ -112,13 +123,17 @@ namespace Oxide.Plugins
                 MiniCopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as MiniCopter;
                 if (miniCopter == null) continue;
 
+                VIPSettings vipsettings;
+                GetVIPSettings(BasePlayer.allPlayerList.First(x => x.userID == playerMini.Key), out vipsettings);
+                bool vip = vipsettings != null;
+
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
                 {
                     hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
                 }
 
                 StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
-                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited))
+                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited) || (vip && vipsettings.unlimited))
                 {
                     miniCopter.fuelPerSec = 0f;
                     if (fuelCan?.IsValid() == true)
@@ -132,7 +147,7 @@ namespace Oxide.Plugins
 
                         // Default for unlimited fuel
                         fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
-                        if (configData.Global.allowFuelIfUnlimited)
+                        if (configData.Global.allowFuelIfUnlimited || (vip && vipsettings.canloot))
                         {
                             fuelCan.SetFlag(BaseEntity.Flags.Locked, false);
                         }
@@ -144,7 +159,7 @@ namespace Oxide.Plugins
                     // Done here in case player's unlimited permission was revoked.
                     fuelCan.SetFlag(BaseEntity.Flags.Locked, false);
                 }
-                miniCopter.fuelPerSec = configData.Global.stdFuelConsumption;
+                miniCopter.fuelPerSec = vip ? vipsettings.stdFuelConsumption : configData.Global.stdFuelConsumption;
             }
         }
 
@@ -200,7 +215,8 @@ namespace Oxide.Plugins
                 {"FoundMsg", "Your copter is located at {0}."},
                 {"CooldownMsg", "You must wait {0} seconds before spawning a new mini copter."},
                 {"DistanceMsg", "You must be within {0} meters of your mini copter."},
-                {"RunningMsg", "Your copter is currently flying and cannot be fetched."},
+                {"FlyingMsg", "Your copter is currently flying and cannot be fetched."},
+                {"RunningMsg2", "Your copter is currently running and cannot be fetched."},
                 {"BlockedMsg", "You cannot spawn or fetch your copter while building blocked."},
                 {"NotFlying", "The copter is not flying" },
                 {"NoAccess", "You do not have permission to access this minicopter" },
@@ -334,6 +350,10 @@ namespace Oxide.Plugins
             int secsleft;
             if (hascooldown)
             {
+                VIPSettings vipsettings;
+                GetVIPSettings(player.Object as BasePlayer, out vipsettings);
+                float cooldownMin = vipsettings != null ? vipsettings.cooldownmin : configData.Global.cooldownmin;
+
                 if (!storedData.playercounter.ContainsKey(bplayer.userID))
                 {
                     storedData.playercounter.Add(bplayer.userID, secondsSinceEpoch);
@@ -344,7 +364,7 @@ namespace Oxide.Plugins
                     double count;
                     storedData.playercounter.TryGetValue(bplayer.userID, out count);
 
-                    if ((secondsSinceEpoch - count) > (configData.Global.cooldownmin * 60))
+                    if ((secondsSinceEpoch - count) > (cooldownMin * 60))
                     {
                         DoLog("Player reached cooldown.  Clearing data.");
                         storedData.playercounter.Remove(bplayer.userID);
@@ -352,7 +372,7 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        secsleft = Math.Abs((int)((configData.Global.cooldownmin * 60) - (secondsSinceEpoch - count)));
+                        secsleft = Math.Abs((int)((cooldownMin * 60) - (secondsSinceEpoch - count)));
 
                         if (secsleft > 0)
                         {
@@ -398,39 +418,51 @@ namespace Oxide.Plugins
                 return;
             }
 
+            VIPSettings vipsettings;
+            GetVIPSettings(player.Object as BasePlayer, out vipsettings);
+            bool vip = vipsettings != null;
+
             if (storedData.playerminiID.ContainsKey(bplayer.userID))
             {
                 uint findme;
                 storedData.playerminiID.TryGetValue(bplayer.userID, out findme);
-                BaseNetworkable foundit = BaseNetworkable.serverEntities.Find(findme);
-                if (foundit != null)
+                BaseNetworkable foundent = BaseNetworkable.serverEntities.Find(findme);
+                if (foundent != null)
                 {
-                    BaseNetworkable ent = BaseNetworkable.serverEntities.Find(findme);
-
-                    // Distance check
-                    if (configData.Global.gminidistance > 0f && Vector3.Distance(bplayer.transform.position, ent.transform.position) > configData.Global.gminidistance)
+                    // Distance check - need a Y check as well... maybe.
+                    float gminiDistance = vip ? vipsettings.gminidistance : configData.Global.gminidistance;
+                    if (gminiDistance > 0f && Vector3.Distance(bplayer.transform.position, foundent.transform.position) > gminiDistance)
                     {
-                        Message(player, "DistanceMsg", configData.Global.gminidistance);
+                        Message(player, "DistanceMsg", gminiDistance);
                         return;
                     }
 
-                    MiniCopter copter = ent as MiniCopter;
+                    MiniCopter copter = foundent as MiniCopter;
+                    float terrainHeight = TerrainMeta.HeightMap.GetHeight(foundent.transform.position);
                     if (copter.engineController.IsOn)
                     {
-                        Message(player, "RunningMsg");
-                        return;
+                        if (!configData.Global.StopEngineOnGMini)
+                        {
+                            Message(player, "RunningMsg2");
+                            return;
+                        }
+                        copter.engineController.StopEngine();
                     }
 
                     // Check for and dismount all players before moving the copter
-                    BaseVehicle bv = ent as BaseVehicle;
-                    for (int i = 0; i < bv.mountPoints.Count; i++)
+                    foreach (BaseVehicle.MountPointInfo mountPointInfo in copter.mountPoints)
                     {
-                        BaseVehicle.MountPointInfo mountPointInfo = bv.mountPoints[i];
                         if (mountPointInfo.mountable != null)
                         {
                             BasePlayer mounted = mountPointInfo.mountable.GetMounted();
                             if (mounted)
                             {
+                                if (mounted.transform.position.y - terrainHeight > 10f)
+                                {
+                                    Message(player, "FlyingMsg");
+                                    return;
+                                }
+
                                 Vector3 player_pos = mounted.transform.position + new Vector3(1, 0, 1);
                                 mounted.DismountObject();
                                 mounted.MovePosition(player_pos);
@@ -441,7 +473,7 @@ namespace Oxide.Plugins
                         }
                     }
                     Vector3 newLoc = new Vector3(bplayer.transform.position.x + 2f, bplayer.transform.position.y + 2f, bplayer.transform.position.z + 2f);
-                    foundit.transform.position = newLoc;
+                    foundent.transform.position = newLoc;
                     Message(player, "FoundMsg", newLoc);
                 }
             }
@@ -497,7 +529,7 @@ namespace Oxide.Plugins
             }
             hoverDelayTimers.Add(playerId, DateTime.Now);
 
-            BaseHelicopterVehicle mini = (player.Object as BasePlayer).GetMountedVehicle() as BaseHelicopterVehicle;
+            BaseHelicopterVehicle mini = (player.Object as BasePlayer)?.GetMountedVehicle() as BaseHelicopterVehicle;
             if (storedData.playerminiID.ContainsKey(playerId) && mini.net.ID == storedData.playerminiID[playerId])
             {
                 if ((player.Object as BasePlayer) != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
@@ -628,6 +660,10 @@ namespace Oxide.Plugins
                 return;
             }
 
+            VIPSettings vipsettings;
+            GetVIPSettings(player, out vipsettings);
+            bool vip = vipsettings != null;
+
             Quaternion rotation = player.GetNetworkRotation();
             Vector3 forward = rotation * Vector3.forward;
             // Make straight perpendicular to up axis so we don't spawn into ground or above player's head.
@@ -647,11 +683,12 @@ namespace Oxide.Plugins
             {
                 hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
             }
-            if (permission.UserHasPermission(player.UserIDString, MinicopterUnlimited))
+            if (permission.UserHasPermission(player.UserIDString, MinicopterUnlimited) || (vip && vipsettings.unlimited))
             {
                 // Set fuel requirements to 0
+                DoLog("Setting fuel requirements to zero");
                 miniCopter.fuelPerSec = 0f;
-                if (!configData.Global.allowFuelIfUnlimited)
+                if (!configData.Global.allowFuelIfUnlimited && !(vip && vipsettings.canloot))
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
@@ -664,23 +701,24 @@ namespace Oxide.Plugins
                     }
                 }
             }
-            else if (configData.Global.startingFuel > 0)
+            else if (configData.Global.startingFuel > 0 || (vip && vipsettings.startingFuel > 0))
             {
                 StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
                 if (fuelCan?.IsValid() == true)
                 {
-                    ItemManager.CreateByItemID(-946369541, Convert.ToInt32(configData.Global.startingFuel))?.MoveToContainer(fuelCan.inventory);
+                    float sf = vip ? vipsettings.startingFuel : configData.Global.startingFuel;
+                    ItemManager.CreateByItemID(-946369541, Convert.ToInt32(sf))?.MoveToContainer(fuelCan.inventory);
                     fuelCan.inventory.MarkDirty();
                 }
             }
             else
             {
-                miniCopter.fuelPerSec = configData.Global.stdFuelConsumption;
+                miniCopter.fuelPerSec = vip ? vipsettings.stdFuelConsumption : configData.Global.stdFuelConsumption;
             }
 
             SendReply(player, Lang("SpawnedMsg"));
             uint minicopteruint = vehicleMini.net.ID;
-            DoLog($"SPAWNED MINICOPTER {minicopteruint} for player {player.displayName} OWNER {vehicleMini.OwnerID}");
+            DoLog($"SPAWNED MINICOPTER {minicopteruint} for player {player?.displayName} OWNER {vehicleMini?.OwnerID}");
             storedData.playerminiID.Remove(player.userID);
             ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
             currentMounts.Remove(myKey);
@@ -694,14 +732,18 @@ namespace Oxide.Plugins
         private void KillMyMinicopterPlease(BasePlayer player, bool killalways=false)
         {
             bool foundcopter = false;
-            if (configData.Global.mindistance == 0f || killalways)
+            VIPSettings vipsettings;
+            GetVIPSettings(player, out vipsettings);
+            float minDistance = vipsettings != null ? vipsettings.mindistance : configData.Global.mindistance;
+
+            if (minDistance == 0f || killalways)
             {
                 foundcopter = true;
             }
             else
             {
                 List<BaseEntity> copterlist = new List<BaseEntity>();
-                Vis.Entities(player.transform.position, configData.Global.mindistance, copterlist);
+                Vis.Entities(player.transform.position, minDistance, copterlist);
 
                 foreach (BaseEntity p in copterlist)
                 {
@@ -733,7 +775,7 @@ namespace Oxide.Plugins
             else if (!foundcopter)
             {
                 DoLog("Player too far from copter to destroy.");
-                SendReply(player, Lang("DistanceMsg", null, configData.Global.mindistance));
+                SendReply(player, Lang("DistanceMsg", null, minDistance));
             }
         }
 
@@ -1027,6 +1069,26 @@ namespace Oxide.Plugins
             return false;
         }
 
+        private void GetVIPSettings(BasePlayer player, out VIPSettings vipsettings)
+        {
+            if (player == null)
+            {
+                DoLog("User has no VIP settings");
+                vipsettings = null;
+                return;
+            }
+            foreach (KeyValuePair<string, VIPSettings> vip in configData.VIPSettings)
+            {
+                string perm = vip.Key.StartsWith($"{Name.ToLower()}.") ? vip.Key : $"{Name.ToLower()}.{vip.Key}";
+                if (permission.UserHasPermission(player.UserIDString, perm) && vip.Value is VIPSettings)
+                {
+                    DoLog($"User has VIP setting {perm}");
+                    vipsettings = vip.Value;
+                }
+            }
+            vipsettings = null;
+        }
+
         private void DoLog(string message)
         {
             if (configData.Global.debug) Puts(message);
@@ -1048,6 +1110,7 @@ namespace Oxide.Plugins
             public bool allowDriverDismountWhileFlying;
             public bool allowPassengerDismountWhileFlying;
             public bool debug;
+            public bool StopEngineOnGMini;
             public float stdFuelConsumption;
             public float cooldownmin;
             public float mindistance;
@@ -1066,9 +1129,21 @@ namespace Oxide.Plugins
             public int HoverKey;
         }
 
+        public class VIPSettings
+        {
+            public bool unlimited;
+            public bool canloot;
+            public float stdFuelConsumption;
+            public float startingFuel;
+            public float cooldownmin;
+            public float mindistance;
+            public float gminidistance;
+        }
+
         public class ConfigData
         {
             public Global Global;
+            public Dictionary<string, VIPSettings> VIPSettings { get; set; }
             public VersionNumber Version;
         }
 
@@ -1098,6 +1173,27 @@ namespace Oxide.Plugins
                 configData.Global.HoverWithoutEngine = false;
                 configData.Global.UseKeystrokeForHover = false;
                 configData.Global.HoverKey = 134217728; // MMB / BUTTON.FIRE_THIRD
+            }
+
+            if (configData.Version < new VersionNumber(0, 4, 7))
+            {
+                configData.VIPSettings = new Dictionary<string, VIPSettings>
+                {
+                    {
+                        "myminicopter.viplevel1", new VIPSettings()
+                        {
+                            startingFuel = 20,
+                            canloot = true,
+                            stdFuelConsumption = 0.15f,
+                            cooldownmin = 120f
+                        }
+                    }
+                };
+            }
+
+            if (configData.VIPSettings == null)
+            {
+                configData.VIPSettings = new Dictionary<string, VIPSettings>();
             }
 
             configData.Version = Version;
