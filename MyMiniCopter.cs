@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.7")]
+    [Info("My Mini Copter", "RFC1920", "0.4.8")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -100,7 +100,7 @@ namespace Oxide.Plugins
         {
             LoadConfigVariables();
 
-            if (configData?.VIPSettings.Count > 0)
+            if (configData?.VIPSettings?.Count > 0)
             {
                 foreach (string vipperm in configData.VIPSettings.Keys)
                 {
@@ -114,8 +114,8 @@ namespace Oxide.Plugins
             {
                 PrintError("Please set a longer cooldown time. Minimum is 2 min.");
                 configData.Global.cooldownmin = 2;
+                SaveConfig(configData);
             }
-            SaveConfig(configData);
 
             LoadData();
             foreach (KeyValuePair<ulong, uint> playerMini in storedData.playerminiID)
@@ -123,8 +123,10 @@ namespace Oxide.Plugins
                 MiniCopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as MiniCopter;
                 if (miniCopter == null) continue;
 
-                VIPSettings vipsettings;
-                GetVIPSettings(BasePlayer.allPlayerList.First(x => x.userID == playerMini.Key), out vipsettings);
+                VIPSettings vipsettings = null;
+                BasePlayer pl = FindPlayerById(playerMini.Key);
+                if (pl == null) continue;
+                GetVIPSettings(pl, out vipsettings);
                 bool vip = vipsettings != null;
 
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
@@ -138,18 +140,18 @@ namespace Oxide.Plugins
                     miniCopter.fuelPerSec = 0f;
                     if (fuelCan?.IsValid() == true)
                     {
-                        if (fuelCan.inventory.IsEmpty())
+                        if (fuelCan?.inventory.IsEmpty() != true)
                         {
                             DoLog($"Setting fuel for MiniCopter {playerMini.Value} owned by {playerMini.Key}.");
-                            ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
-                            fuelCan.inventory.MarkDirty();
+                            ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan?.inventory);
+                            fuelCan?.inventory.MarkDirty();
                         }
 
                         // Default for unlimited fuel
-                        fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
+                        fuelCan?.SetFlag(BaseEntity.Flags.Locked, true);
                         if (configData.Global.allowFuelIfUnlimited || (vip && vipsettings.canloot))
                         {
-                            fuelCan.SetFlag(BaseEntity.Flags.Locked, false);
+                            fuelCan?.SetFlag(BaseEntity.Flags.Locked, false);
                         }
                     }
                     continue;
@@ -157,7 +159,7 @@ namespace Oxide.Plugins
                 else
                 {
                     // Done here in case player's unlimited permission was revoked.
-                    fuelCan.SetFlag(BaseEntity.Flags.Locked, false);
+                    fuelCan?.SetFlag(BaseEntity.Flags.Locked, false);
                 }
                 miniCopter.fuelPerSec = vip ? vipsettings.stdFuelConsumption : configData.Global.stdFuelConsumption;
             }
@@ -1087,6 +1089,18 @@ namespace Oxide.Plugins
                 }
             }
             vipsettings = null;
+        }
+
+        private static BasePlayer FindPlayerById(ulong userid)
+        {
+            foreach (BasePlayer current in BasePlayer.allPlayerList)
+            {
+                if (current.userID == userid)
+                {
+                    return current;
+                }
+            }
+            return null;
         }
 
         private void DoLog(string message)
