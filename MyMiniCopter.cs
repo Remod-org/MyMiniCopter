@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.8")]
+    [Info("My Mini Copter", "RFC1920", "0.4.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -276,6 +276,7 @@ namespace Oxide.Plugins
             hoverDelayTimers.Add(player.userID, DateTime.Now);
 
             BaseHelicopterVehicle mini = player.GetMountedVehicle() as BaseHelicopterVehicle;
+            if (mini == null) return;
             if (storedData.playerminiID.ContainsKey(player.userID) && mini.net.ID == storedData.playerminiID[player.userID])
             {
                 if (player != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
@@ -532,6 +533,7 @@ namespace Oxide.Plugins
             hoverDelayTimers.Add(playerId, DateTime.Now);
 
             BaseHelicopterVehicle mini = (player.Object as BasePlayer)?.GetMountedVehicle() as BaseHelicopterVehicle;
+            if (mini == null) return;
             if (storedData.playerminiID.ContainsKey(playerId) && mini.net.ID == storedData.playerminiID[playerId])
             {
                 if ((player.Object as BasePlayer) != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
@@ -989,7 +991,7 @@ namespace Oxide.Plugins
 
                 // Check for mounted players
                 BaseVehicle copter = tokill as BaseVehicle;
-                for (int i = 0; i < copter.mountPoints.Count; i++)
+                for (int i = 0; i < copter?.mountPoints.Count; i++)
                 {
                     BaseVehicle.MountPointInfo mountPointInfo = copter.mountPoints[i];
                     if (mountPointInfo.mountable != null)
