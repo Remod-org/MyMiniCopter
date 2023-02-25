@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.4.9")]
+    [Info("My Mini Copter", "RFC1920", "0.5.0")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -273,7 +273,10 @@ namespace Oxide.Plugins
                 }
                 hoverDelayTimers.Remove(player.userID);
             }
-            hoverDelayTimers.Add(player.userID, DateTime.Now);
+            else
+            {
+                hoverDelayTimers.Add(player.userID, DateTime.Now);
+            }
 
             BaseHelicopterVehicle mini = player.GetMountedVehicle() as BaseHelicopterVehicle;
             if (mini == null) return;
@@ -287,13 +290,14 @@ namespace Oxide.Plugins
 
                 if (mini.IsEngineOn() && mini.GetDriver())
                 {
-                    if (stabilize)
+                    int iid = mini.GetInstanceID();
+                    if (iid > 0 && hovers.ContainsKey(iid) && stabilize)
                     {
-                        hovers[mini.GetInstanceID()]?.Stabilize();
+                        hovers[iid]?.Stabilize();
                         return;
                     }
                     DoLog($"Finding hover object for {mini.net.ID}");
-                    hovers[mini.GetInstanceID()]?.ToggleHover();
+                    hovers[iid]?.ToggleHover();
                 }
             }
         }
