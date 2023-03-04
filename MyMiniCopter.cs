@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.0")]
+    [Info("My Mini Copter", "RFC1920", "0.5.1")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -259,30 +259,43 @@ namespace Oxide.Plugins
             if (player == null || input == null) return;
             if (!configData.Global.UseKeystrokeForHover) return;
             if (!permission.UserHasPermission(player.UserIDString, MinicopterCanHover)) return;
-            //Puts($"OnPlayerInput: {input.current.buttons}");
+            //if (input.current.buttons > 0) Puts($"OnPlayerInput: {input.current.buttons}");
             if (!player.isMounted) return;
-            int keystroke = configData.Global.HoverKey > 0 ? configData.Global.HoverKey : (int)BUTTON.FIRE_THIRD; // MMB
+            int hoverkey = configData.Global.HoverKey > 0 ? configData.Global.HoverKey : (int)BUTTON.FIRE_THIRD; // MMB
+            bool dohover = input.current.buttons == hoverkey;
             bool stabilize = input.current.buttons == (int)BUTTON.BACKWARD;
 
-            if (input.current.buttons != keystroke && !stabilize) return;
+            if (!(dohover || stabilize)) return;
+            BaseHelicopterVehicle mini = player.GetMountedVehicle() as BaseHelicopterVehicle;
+            if (mini == null) return;
+
+            DoLog($"Stabilize: {stabilize}, hover toggle: {dohover}");
+            DoLog($"HoverDelay: {hoverDelayTimers.ContainsKey(player.userID)}");
+            // Process hoverDelayTimers for user regardless of hover or stabilize.
+            //   If trying to hover and timer not expired, return.
+            //   If timer expired, remove timer and continue.
             if (hoverDelayTimers.ContainsKey(player.userID))
             {
-                if (DateTime.Now - hoverDelayTimers[player.userID] < TimeSpan.FromMilliseconds(1000))
+                if (DateTime.Now - hoverDelayTimers[player.userID] < TimeSpan.FromMilliseconds(1000) && dohover)
                 {
+                    DoLog("Hover delay not elapsed, returning");
                     return;
                 }
                 hoverDelayTimers.Remove(player.userID);
             }
-            else
+
+            // Now, if trying to hover, setup a new delay timer for the next keystroke.
+            if (dohover)
             {
+                DoLog("Resetting hover delay timer");
+                hoverDelayTimers.Remove(player.userID);
                 hoverDelayTimers.Add(player.userID, DateTime.Now);
             }
 
-            BaseHelicopterVehicle mini = player.GetMountedVehicle() as BaseHelicopterVehicle;
-            if (mini == null) return;
+            // Process hover or stablize
             if (storedData.playerminiID.ContainsKey(player.userID) && mini.net.ID == storedData.playerminiID[player.userID])
             {
-                if (player != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
+                if (dohover && player != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
                 {
                     Message(player.IPlayer, "NoPassengerToggle");
                     return;
@@ -291,13 +304,17 @@ namespace Oxide.Plugins
                 if (mini.IsEngineOn() && mini.GetDriver())
                 {
                     int iid = mini.GetInstanceID();
-                    if (iid > 0 && hovers.ContainsKey(iid) && stabilize)
+                    DoLog($"Hovers contains {iid}: {hovers.ContainsKey(iid)}");
+                    if (stabilize && hovers.ContainsKey(iid) && hovers[iid].isHovering)
                     {
+                        DoLog($"Stabilizing {mini.net.ID}");
                         hovers[iid]?.Stabilize();
-                        return;
                     }
-                    DoLog($"Finding hover object for {mini.net.ID}");
-                    hovers[iid]?.ToggleHover();
+                    else if (dohover && hovers.ContainsKey(iid))
+                    {
+                        DoLog($"Toggling hover for {mini.net.ID}");
+                        hovers[iid]?.ToggleHover();
+                    }
                 }
             }
         }
@@ -1296,7 +1313,7 @@ namespace Oxide.Plugins
             Coroutine _hoverCoroutine;
             VehicleEngineController<MiniCopter> _engineController;
 
-            private bool isHovering => _rb.constraints == RigidbodyConstraints.FreezePositionY;
+            public bool isHovering => _rb.constraints == RigidbodyConstraints.FreezePositionY;
 
             public void Awake()
             {
