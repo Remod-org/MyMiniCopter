@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.1")]
+    [Info("My Mini Copter", "RFC1920", "0.5.2")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -122,10 +122,10 @@ namespace Oxide.Plugins
             {
                 MiniCopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as MiniCopter;
                 if (miniCopter == null) continue;
-
-                VIPSettings vipsettings = null;
                 BasePlayer pl = FindPlayerById(playerMini.Key);
                 if (pl == null) continue;
+
+                VIPSettings vipsettings;
                 GetVIPSettings(pl, out vipsettings);
                 bool vip = vipsettings != null;
 
@@ -257,6 +257,7 @@ namespace Oxide.Plugins
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
             if (player == null || input == null) return;
+            if (!player.userID.IsSteamId()) return;
             if (!configData.Global.UseKeystrokeForHover) return;
             if (!permission.UserHasPermission(player.UserIDString, MinicopterCanHover)) return;
             //if (input.current.buttons > 0) Puts($"OnPlayerInput: {input.current.buttons}");
@@ -818,10 +819,11 @@ namespace Oxide.Plugins
         private object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
             if (player == null) return null;
-            MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
+            if (mountable == null) return null;
+            MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
             if (mini == null) return null;
 
-            DoLog($"Player {player.userID} wants to mount seat id {mountable.net.ID}");
+            DoLog($"Player {player?.userID} wants to mount seat id {mountable?.net.ID}");
             uint id = mountable.net.ID - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
             for (int i = 0; i < 3; i++)
             {
