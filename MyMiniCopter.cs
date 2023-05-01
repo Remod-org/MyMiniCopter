@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.2")]
+    [Info("My Mini Copter", "RFC1920", "0.5.3")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -992,10 +992,20 @@ namespace Oxide.Plugins
                     }
                     return null;
                 }
-                else if (!configData.Global.allowDamage)
+                else
                 {
-                    return true;
+                    if (!configData.Global.allowDamage) return true;
+
+                    foreach (KeyValuePair<string, VIPSettings> vip in configData.VIPSettings)
+                    {
+                        string perm = vip.Key.StartsWith($"{Name.ToLower()}.") ? vip.Key : $"{Name.ToLower()}.{vip.Key}";
+                        if (permission.UserHasPermission(entity.OwnerID.ToString(), perm) && vip.Value is VIPSettings && !vip.Value.allowDamage)
+                        {
+                            return true;
+                        }
+                    }
                 }
+
             }
             return null;
         }
@@ -1172,6 +1182,7 @@ namespace Oxide.Plugins
         {
             public bool unlimited;
             public bool canloot;
+            public bool allowDamage;
             public float stdFuelConsumption;
             public float startingFuel;
             public float cooldownmin;
@@ -1223,6 +1234,7 @@ namespace Oxide.Plugins
                         {
                             startingFuel = 20,
                             canloot = true,
+                            allowDamage = true,
                             stdFuelConsumption = 0.15f,
                             cooldownmin = 120f
                         }
@@ -1233,6 +1245,14 @@ namespace Oxide.Plugins
             if (configData.VIPSettings == null)
             {
                 configData.VIPSettings = new Dictionary<string, VIPSettings>();
+            }
+
+            if (configData.Version < new VersionNumber(0, 5, 3))
+            {
+                foreach (KeyValuePair<string, VIPSettings> vip in configData.VIPSettings)
+                {
+                    vip.Value.allowDamage = true;
+                }
             }
 
             configData.Version = Version;
