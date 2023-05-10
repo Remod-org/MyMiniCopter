@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.4")]
+    [Info("My Mini Copter", "RFC1920", "0.5.5")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -882,7 +882,7 @@ namespace Oxide.Plugins
         private object CanDismountEntity(BasePlayer player, BaseMountable mountable)
         {
             if (player == null) return null;
-            MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
+            MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
             if (mini != null)
             {
                 if (!Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), configData.Global.minDismountHeight, layerMask))
@@ -1116,6 +1116,7 @@ namespace Oxide.Plugins
                 {
                     DoLog($"User has VIP setting {perm}");
                     vipsettings = vip.Value;
+                    return; // No need to keep trying
                 }
             }
             vipsettings = null;
