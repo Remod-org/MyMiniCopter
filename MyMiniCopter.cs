@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.6")]
+    [Info("My Mini Copter", "RFC1920", "0.5.7")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -263,8 +263,7 @@ namespace Oxide.Plugins
 
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
-            if (player == null || input == null) return;
-            if (!player.userID.IsSteamId()) return;
+            if (player?.userID.IsSteamId() != true || input == null) return;
             if (!configData.Global.UseKeystrokeForHover) return;
             if (!permission.UserHasPermission(player.UserIDString, MinicopterCanHover)) return;
             //if (input.current.buttons > 0) Puts($"OnPlayerInput: {input.current.buttons}");
@@ -301,9 +300,9 @@ namespace Oxide.Plugins
             }
 
             // Process hover or stablize
-            if (storedData.playerminiID.ContainsKey(player.userID) && mini.net.ID.Value == storedData.playerminiID[player.userID].Value)
+            if (storedData.playerminiID.ContainsKey(player.userID) && mini?.net.ID.Value == storedData.playerminiID[player.userID].Value)
             {
-                if (dohover && player != mini.GetDriver() && !configData.Global.PassengerCanToggleHover)
+                if (dohover && player != mini?.GetDriver() && !configData.Global.PassengerCanToggleHover)
                 {
                     Message(player.IPlayer, "NoPassengerToggle");
                     return;
@@ -825,7 +824,7 @@ namespace Oxide.Plugins
         #region hooks
         private object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
-            if (player == null) return null;
+            if (player?.userID.IsSteamId() != true) return null;
             if (mountable == null) return null;
             MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
             if (mini == null) return null;
@@ -841,6 +840,7 @@ namespace Oxide.Plugins
                 {
                     DoLog("    yes, it is...");
                     BaseVehicle minimount = BaseNetworkable.serverEntities.Find(mini.net.ID) as BaseVehicle;
+                    DoLog($"Does {player.userID} match {minimount?.OwnerID}, or are they a friend?");
                     if (!IsFriend(player.userID, minimount.OwnerID))
                     {
                         DoLog("Player does not own minicopter, and is not a friend of the owner.");
@@ -893,7 +893,7 @@ namespace Oxide.Plugins
 
         private object CanDismountEntity(BasePlayer player, BaseMountable mountable)
         {
-            if (player == null) return null;
+            if (player?.userID.IsSteamId() != true) return null;
             MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
             DoLog($"CanDismountEntity: Player {player.userID} wants to dismount seat id {mountable.net.ID}");
 
@@ -1032,7 +1032,7 @@ namespace Oxide.Plugins
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
             if (!configData.Global.killOnSleep) return;
-            if (player == null) return;
+            if (player?.userID.IsSteamId() != true) return;
 
             if (storedData.playerminiID.ContainsKey(player.userID))
             {
@@ -1122,7 +1122,7 @@ namespace Oxide.Plugins
 
         private void GetVIPSettings(BasePlayer player, out VIPSettings vipsettings)
         {
-            if (player == null)
+            if (player?.userID.IsSteamId() != true)
             {
                 DoLog("User has no VIP settings");
                 vipsettings = null;
