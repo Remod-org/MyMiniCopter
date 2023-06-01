@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.7")]
+    [Info("My Mini Copter", "RFC1920", "0.5.8")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -824,7 +824,6 @@ namespace Oxide.Plugins
         #region hooks
         private object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
-            if (player?.userID.IsSteamId() != true) return null;
             if (mountable == null) return null;
             MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
             if (mini == null) return null;
@@ -839,6 +838,7 @@ namespace Oxide.Plugins
                 if (storedData.playerminiID.ContainsValue(mini.net.ID))
                 {
                     DoLog("    yes, it is...");
+                    if (player?.userID.IsSteamId() != true) return true; // Block mounting by NPCs
                     BaseVehicle minimount = BaseNetworkable.serverEntities.Find(mini.net.ID) as BaseVehicle;
                     DoLog($"Does {player.userID} match {minimount?.OwnerID}, or are they a friend?");
                     if (!IsFriend(player.userID, minimount.OwnerID))
