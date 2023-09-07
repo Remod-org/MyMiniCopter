@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.8")]
+    [Info("My Mini Copter", "RFC1920", "0.5.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -127,7 +127,7 @@ namespace Oxide.Plugins
             LoadData();
             foreach (KeyValuePair<ulong, NetworkableId> playerMini in storedData.playerminiID)
             {
-                MiniCopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as MiniCopter;
+                Minicopter miniCopter = BaseNetworkable.serverEntities.Find(playerMini.Value) as Minicopter;
                 if (miniCopter == null) continue;
                 BasePlayer pl = FindPlayerById(playerMini.Key);
                 if (pl == null) continue;
@@ -136,10 +136,10 @@ namespace Oxide.Plugins
                 GetVIPSettings(pl, out vipsettings);
                 bool vip = vipsettings != null;
 
-                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
-                {
-                    hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
-                }
+                //if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
+                //{
+                //    hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
+                //}
 
                 StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited) || (vip && vipsettings.unlimited))
@@ -273,7 +273,7 @@ namespace Oxide.Plugins
             bool stabilize = input.current.buttons == (int)BUTTON.BACKWARD;
 
             if (!(dohover || stabilize)) return;
-            BaseHelicopterVehicle mini = player.GetMountedVehicle() as BaseHelicopterVehicle;
+            BaseHelicopter mini = player.GetMountedVehicle() as BaseHelicopter;
             if (mini == null) return;
 
             DoLog($"Stabilize: {stabilize}, hover toggle: {dohover}");
@@ -324,6 +324,25 @@ namespace Oxide.Plugins
                     }
                 }
             }
+        }
+
+        private object OnEngineStart(Minicopter mini)
+        {
+            if (storedData.playerminiID.ContainsValue(mini.net.ID))
+            {
+                BasePlayer player = BasePlayer.Find(mini.OwnerID.ToString());
+                if (player != null)
+                {
+                    VIPSettings vipsettings;
+                    GetVIPSettings(player, out vipsettings);
+                    bool fast = vipsettings != null ? vipsettings.FastStart : configData.Global.FastStart;
+                    if (fast)
+                    {
+                        mini?.engineController?.FinishStartingEngine();
+                    }
+                }
+            }
+            return null;
         }
 
         private string Lang(string key, string id = default(string), params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
@@ -468,7 +487,7 @@ namespace Oxide.Plugins
                         return;
                     }
 
-                    MiniCopter copter = foundent as MiniCopter;
+                    Minicopter copter = foundent as Minicopter;
                     float terrainHeight = TerrainMeta.HeightMap.GetHeight(foundent.transform.position);
                     if (copter.engineController.IsOn)
                     {
@@ -560,7 +579,7 @@ namespace Oxide.Plugins
             }
             hoverDelayTimers.Add(playerId, DateTime.Now);
 
-            BaseHelicopterVehicle mini = (player.Object as BasePlayer)?.GetMountedVehicle() as BaseHelicopterVehicle;
+            BaseHelicopter mini = (player.Object as BasePlayer)?.GetMountedVehicle() as BaseHelicopter;
             if (mini == null) return;
             if (storedData.playerminiID.ContainsKey(playerId) && mini.net.ID.Value == storedData.playerminiID[playerId].Value)
             {
@@ -708,7 +727,7 @@ namespace Oxide.Plugins
             if (vehicleMini == null) return;
             vehicleMini.OwnerID = player.userID;
 
-            MiniCopter miniCopter = vehicleMini as MiniCopter;
+            Minicopter miniCopter = vehicleMini as Minicopter;
 
             vehicleMini.Spawn();
             if (permission.UserHasPermission(player.UserIDString, MinicopterCanHover))
@@ -779,7 +798,7 @@ namespace Oxide.Plugins
 
                 foreach (BaseEntity p in copterlist)
                 {
-                    MiniCopter foundent = p.GetComponentInParent<MiniCopter>();
+                    Minicopter foundent = p.GetComponentInParent<Minicopter>();
                     if (foundent != null)
                     {
                         foundcopter = true;
@@ -825,7 +844,7 @@ namespace Oxide.Plugins
         private object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
             if (mountable == null) return null;
-            MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
+            Minicopter mini = mountable?.GetComponentInParent<Minicopter>();
             if (mini == null) return null;
 
             DoLog($"CanMountEntity: Player {player?.userID} wants to mount seat id {mountable?.net.ID}");
@@ -866,7 +885,7 @@ namespace Oxide.Plugins
 
         private void OnEntityMounted(BaseMountable mountable, BasePlayer player)
         {
-            MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
+            Minicopter mini = mountable.GetComponentInParent<Minicopter>();
             if (mini != null)
             {
                 DoLog($"OnEntityMounted: Player {player.userID} mounted seat id {mountable.net.ID}");
@@ -894,7 +913,7 @@ namespace Oxide.Plugins
         private object CanDismountEntity(BasePlayer player, BaseMountable mountable)
         {
             if (player?.userID.IsSteamId() != true) return null;
-            MiniCopter mini = mountable?.GetComponentInParent<MiniCopter>();
+            Minicopter mini = mountable?.GetComponentInParent<Minicopter>();
             DoLog($"CanDismountEntity: Player {player.userID} wants to dismount seat id {mountable.net.ID}");
 
             // Only operates if mini is not null and if we are flying above minimum height
@@ -932,7 +951,7 @@ namespace Oxide.Plugins
 
         private void OnEntityDismounted(BaseMountable mountable, BasePlayer player)
         {
-            MiniCopter mini = mountable.GetComponentInParent<MiniCopter>();
+            Minicopter mini = mountable.GetComponentInParent<Minicopter>();
             if (mini != null)
             {
                 DoLog($"OnEntityDismounted: Player {player.userID} dismounted seat id {mountable.net.ID}");
@@ -957,7 +976,7 @@ namespace Oxide.Plugins
         }
 
         // On kill - tell owner
-        private void OnEntityKill(MiniCopter entity)
+        private void OnEntityKill(Minicopter entity)
         {
             if (entity == null) return;
             if (entity.net.ID.Value == 0) return;
@@ -1175,6 +1194,7 @@ namespace Oxide.Plugins
             public bool allowPassengerDismountWhileFlying;
             public bool debug;
             public bool StopEngineOnGMini;
+            public bool FastStart;
             public float stdFuelConsumption;
             public float cooldownmin;
             public float mindistance;
@@ -1196,6 +1216,7 @@ namespace Oxide.Plugins
         public class VIPSettings
         {
             public bool unlimited;
+            public bool FastStart;
             public bool canloot;
             public bool allowDamage;
             public float stdFuelConsumption;
@@ -1366,15 +1387,15 @@ namespace Oxide.Plugins
         private class Hovering : MonoBehaviour
         {
             // Portions borrowed from HelicopterHover plugin but modified
-            private BaseHelicopterVehicle _helicopter;
-            MiniCopter _minicopter;
+            private BaseHelicopter _helicopter;
+            Minicopter _minicopter;
             Rigidbody _rb;
 
             Timer _timedHoverTimer;
             Timer _fuelUseTimer;
 
             Coroutine _hoverCoroutine;
-            VehicleEngineController<MiniCopter> _engineController;
+            VehicleEngineController<Minicopter> _engineController;
 
             public bool isHovering => _rb.constraints == RigidbodyConstraints.FreezePositionY;
 
@@ -1394,8 +1415,8 @@ namespace Oxide.Plugins
                     DestroyImmediate(this);
                     return;
                 }
-                _minicopter = GetComponent<MiniCopter>();
-                _engineController = _minicopter?.engineController;
+                _minicopter = GetComponent<Minicopter>();
+                //_engineController = _minicopter?.engineController;
             }
 
             public void ToggleHover()
