@@ -55,7 +55,7 @@ using System.Collections;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.5.9")]
+    [Info("My Mini Copter", "RFC1920", "0.6.0")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -136,10 +136,10 @@ namespace Oxide.Plugins
                 GetVIPSettings(pl, out vipsettings);
                 bool vip = vipsettings != null;
 
-                //if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
-                //{
-                //    hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
-                //}
+                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterCanHover))
+                {
+                    hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
+                }
 
                 StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited) || (vip && vipsettings.unlimited))
@@ -1416,7 +1416,7 @@ namespace Oxide.Plugins
                     return;
                 }
                 _minicopter = GetComponent<Minicopter>();
-                //_engineController = _minicopter?.engineController;
+                _engineController = GetComponent<VehicleEngineController<Minicopter>>();
             }
 
             public void ToggleHover()
@@ -1525,7 +1525,7 @@ namespace Oxide.Plugins
                 {
                     StopHover();
                 }
-                else if (_engineController.IsOff && isHovering && !Instance.configData.Global.HoverWithoutEngine)
+                else if ((_engineController?.IsOff != false) && isHovering && !Instance.configData.Global.HoverWithoutEngine)
                 {
                     StopHover();
                 }
