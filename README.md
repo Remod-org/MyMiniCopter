@@ -13,7 +13,7 @@ Uses: NoEscape (optional)
 - `myminicopter.admin`  -- Allows an admin to run console commands (may change)
 - `myminicopter.cooldown` -- Adds a cooldown to player
 - `myminicopter.unlimited` -- Player can fly without fuel usage (will need to add at least 1 LGF unless "Allow unlimited to use fuel tank" is set to false)
-- `myminicopter.hover` -- Player can enable or disable hover mode
+- `myminicopter.canhover` -- Player can enable or disable hover mode
 
 ## Chat Commands
 
