@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Scrap Copter", "RFC1920", "0.0.2")]
+    [Info("My Scrap Copter", "RFC1920", "0.0.3")]
     [Description("Spawn a Scrap Helicopter")]
     internal class MyScrapHeli : RustPlugin
     {
@@ -99,7 +99,7 @@ namespace Oxide.Plugins
 
             foreach (KeyValuePair<ulong, uint> x in storedData.playerheliID)
             {
-                BaseNetworkable vehicleheli = BaseNetworkable.serverEntities.Find(x.Value);
+                BaseNetworkable vehicleheli = BaseNetworkable.serverEntities.Find(new NetworkableId(x.Value));
                 if (vehicleheli == null) continue;
                 ScrapTransportHelicopter heliCopter = vehicleheli as ScrapTransportHelicopter;
                 if (heliCopter == null) continue;
@@ -228,7 +228,7 @@ namespace Oxide.Plugins
 
                         if (secsleft > 0)
                         {
-                            if (configData.Global.debug) Puts($"Player DID NOT reach cooldown. Still {secsleft.ToString()} secs left.");
+                            if (configData.Global.debug) Puts($"Player DID NOT reach cooldown. Still {secsleft} secs left.");
                             Message(player, "CooldownMsg", secsleft.ToString());
                             return;
                         }
@@ -268,10 +268,10 @@ namespace Oxide.Plugins
             {
                 uint findme;
                 storedData.playerheliID.TryGetValue(bplayer.userID, out findme);
-                BaseNetworkable foundit = BaseNetworkable.serverEntities.Find(findme);
+                BaseNetworkable foundit = BaseNetworkable.serverEntities.Find(new NetworkableId(findme));
                 if (foundit != null)
                 {
-                    BaseNetworkable ent = BaseNetworkable.serverEntities.Find(findme);
+                    BaseNetworkable ent = BaseNetworkable.serverEntities.Find(new NetworkableId(findme));
 
                     // Distance check
                     if (configData.Global.ghelidistance > 0f && Vector3.Distance(bplayer.transform.position, ent.transform.position) > configData.Global.ghelidistance)
@@ -331,7 +331,7 @@ namespace Oxide.Plugins
             {
                 uint findme;
                 storedData.playerheliID.TryGetValue(bplayer.userID, out findme);
-                BaseNetworkable foundit = BaseNetworkable.serverEntities.Find(findme);
+                BaseNetworkable foundit = BaseNetworkable.serverEntities.Find(new NetworkableId(findme));
                 if (foundit != null)
                 {
                     string loc = foundit.transform.position.ToString();
@@ -494,8 +494,8 @@ namespace Oxide.Plugins
             }
 
             SendReply(player, Lang("SpawnedMsg"));
-            uint helicopteruint = vehicleheli.net.ID;
-            if (configData.Global.debug) Puts($"SPAWNED SCRAPCOPTER {helicopteruint.ToString()} for player {player.displayName} OWNER {heliEntity.OwnerID}");
+            uint helicopteruint = (uint)vehicleheli.net.ID.Value;
+            if (configData.Global.debug) Puts($"SPAWNED SCRAPCOPTER {helicopteruint} for player {player.displayName} OWNER {heliEntity.OwnerID}");
             storedData.playerheliID.Remove(player.userID);
             ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
             currentMounts.Remove(myKey);
@@ -533,7 +533,7 @@ namespace Oxide.Plugins
             {
                 uint findPlayerId;
                 storedData.playerheliID.TryGetValue(player.userID, out findPlayerId);
-                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(findPlayerId);
+                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(new NetworkableId(findPlayerId));
                 tokill?.Kill(BaseNetworkable.DestroyMode.Gib);
                 storedData.playerheliID.Remove(player.userID);
                 ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
@@ -561,12 +561,12 @@ namespace Oxide.Plugins
             ScrapTransportHelicopter heli = mountable.GetComponentInParent<ScrapTransportHelicopter>();
             if (heli != null)
             {
-                if (configData.Global.debug) Puts($"Player {player.userID.ToString()} wants to mount seat id {mountable.net.ID.ToString()}");
-                uint id = mountable.net.ID - 2;
+                if (configData.Global.debug) Puts($"Player {player.userID} wants to mount seat id {mountable.net.ID}");
+                uint id = (uint)mountable.net.ID.Value - 2;
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter and seats in storedData
-                    if (configData.Global.debug) Puts($"  Is this our copter with ID {id.ToString()}?");
+                    if (configData.Global.debug) Puts($"  Is this our copter with ID {id}?");
                     if (storedData.playerheliID.ContainsValue(id))
                     {
                         if (configData.Global.debug) Puts("    yes, it is...");
@@ -591,19 +591,19 @@ namespace Oxide.Plugins
             ScrapTransportHelicopter heli = mountable.GetComponentInParent<ScrapTransportHelicopter>();
             if (heli != null)
             {
-                if (configData.Global.debug) Puts($"Player {player.userID.ToString()} mounted seat id {mountable.net.ID.ToString()}");
+                if (configData.Global.debug) Puts($"Player {player.userID} mounted seat id {mountable.net.ID}");
                 // Check this seat's ID to see if the copter is one of ours
-                uint id = mountable.net.ID - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
+                uint id = (uint)mountable.net.ID.Value - 2; // max seat == copter.net.ID + 2, e.g. passenger seat id - 2 == copter id
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter in storedData
-                    if (configData.Global.debug) Puts($"Is this our copter with ID {id.ToString()}?");
+                    if (configData.Global.debug) Puts($"Is this our copter with ID {id}?");
                     if (storedData.playerheliID.ContainsValue(id))
                     {
-                        if (configData.Global.debug) Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
-                        currentMounts.Remove(mountable.net.ID);
-                        if (configData.Global.debug) Puts($"Adding {player.displayName}'s ID {player.userID} to currentMounts for seat {mountable.net.ID.ToString()} on {id}");
-                        currentMounts.Add(mountable.net.ID, player.userID);
+                        if (configData.Global.debug) Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID} on {id}");
+                        currentMounts.Remove(mountable.net.ID.Value);
+                        if (configData.Global.debug) Puts($"Adding {player.displayName}'s ID {player.userID} to currentMounts for seat {mountable.net.ID} on {id}");
+                        currentMounts.Add(mountable.net.ID.Value, player.userID);
                         break;
                     }
                     id++;
@@ -620,7 +620,7 @@ namespace Oxide.Plugins
                 if (!Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), configData.Global.minDismountHeight, layerMask))
                 {
                     // Is this one of ours?
-                    if (storedData.playerheliID.ContainsValue(mountable.net.ID - 1))
+                    if (storedData.playerheliID.ContainsValue((uint)mountable.net.ID.Value - 1))
                     {
                         if (!configData.Global.allowDriverDismountWhileFlying)
                         {
@@ -630,7 +630,7 @@ namespace Oxide.Plugins
                         ulong myKey = currentMounts.FirstOrDefault(x => x.Value == player.userID).Key;
                         currentMounts.Remove(myKey);
                     }
-                    else if (storedData.playerheliID.ContainsValue(mountable.net.ID - 2))
+                    else if (storedData.playerheliID.ContainsValue((uint)mountable.net.ID.Value - 2))
                     {
                         if (!configData.Global.allowPassengerDismountWhileFlying)
                         {
@@ -650,16 +650,16 @@ namespace Oxide.Plugins
             ScrapTransportHelicopter heli = mountable.GetComponentInParent<ScrapTransportHelicopter>();
             if (heli != null)
             {
-                if (configData.Global.debug) Puts($"Player {player.userID.ToString()} dismounted seat id {mountable.net.ID.ToString()}");
-                uint id = mountable.net.ID - 2;
+                if (configData.Global.debug) Puts($"Player {player.userID} dismounted seat id {mountable.net.ID}");
+                uint id = (uint)mountable.net.ID.Value - 2;
                 for (int i = 0; i < 3; i++)
                 {
                     // Find copter and seats in storedData
-                    if (configData.Global.debug) Puts($"Is this our copter with ID {id.ToString()}?");
+                    if (configData.Global.debug) Puts($"Is this our copter with ID {id}?");
                     if (storedData.playerheliID.ContainsValue(id))
                     {
-                        if (configData.Global.debug) Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID.ToString()} on {id}");
-                        currentMounts.Remove(mountable.net.ID);
+                        if (configData.Global.debug) Puts($"Removing {player.displayName}'s ID {player.userID} from currentMounts for seat {mountable.net.ID} on {id}");
+                        currentMounts.Remove((uint)mountable.net.ID.Value);
                         break;
                     }
                     id++;
@@ -673,20 +673,20 @@ namespace Oxide.Plugins
         private void OnEntityKill(ScrapTransportHelicopter entity)
         {
             if (entity == null) return;
-            if (entity.net.ID == 0) return;
+            if (entity.net.ID.Value == 0) return;
 
             if (storedData == null) return;
             if (storedData.playerheliID == null) return;
             ulong todelete = new ulong();
 
-            if (!storedData.playerheliID.ContainsValue(entity.net.ID))
+            if (!storedData.playerheliID.ContainsValue((uint)entity.net.ID.Value))
             {
                 if (configData.Global.debug) Puts("KILLED non-plugin helicopter");
                 return;
             }
             foreach (KeyValuePair<ulong, uint> item in storedData.playerheliID)
             {
-                if (item.Value == entity.net.ID)
+                if (item.Value == entity.net.ID.Value)
                 {
                     ChatPlayerOnline(item.Key, "killed");
                     BasePlayer player = BasePlayer.FindByID(item.Key);
@@ -696,9 +696,9 @@ namespace Oxide.Plugins
             if (todelete != 0)
             {
                 storedData.playerheliID.Remove(todelete);
-                currentMounts.Remove(entity.net.ID);
-                currentMounts.Remove(entity.net.ID + 1);
-                currentMounts.Remove(entity.net.ID + 2);
+                currentMounts.Remove(entity.net.ID.Value);
+                currentMounts.Remove(entity.net.ID.Value + 1);
+                currentMounts.Remove(entity.net.ID.Value + 2);
                 SaveData();
             }
         }
@@ -711,15 +711,15 @@ namespace Oxide.Plugins
             if (!hitInfo.damageTypes.Has(Rust.DamageType.Decay)) return;
             if (storedData == null) return;
 
-            if (storedData.playerheliID?.ContainsValue(entity.net.ID) == true)
+            if (storedData.playerheliID?.ContainsValue((uint)entity.net.ID.Value) == true)
             {
                 if (configData.Global.copterDecay)
                 {
-                    if (configData.Global.debug) Puts($"Enabling standard decay for spawned helicopter {entity.net.ID.ToString()}.");
+                    if (configData.Global.debug) Puts($"Enabling standard decay for spawned helicopter {entity.net.ID}.");
                 }
                 else
                 {
-                    if (configData.Global.debug) Puts($"Disabling decay for spawned helicopter {entity.net.ID.ToString()}.");
+                    if (configData.Global.debug) Puts($"Disabling decay for spawned helicopter {entity.net.ID}.");
                     hitInfo.damageTypes.Scale(Rust.DamageType.Decay, 0);
                 }
             }
@@ -734,7 +734,7 @@ namespace Oxide.Plugins
             {
                 uint findPlayerId;
                 storedData.playerheliID.TryGetValue(player.userID, out findPlayerId);
-                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(findPlayerId);
+                BaseNetworkable tokill = BaseNetworkable.serverEntities.Find(new NetworkableId(findPlayerId));
                 if (tokill == null) return; // Didn't find it
 
                 // Check for mounted players
