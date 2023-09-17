@@ -31,7 +31,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("My Scrap Copter", "RFC1920", "0.0.3")]
+    [Info("My scrap heli", "RFC1920", "0.0.4")]
     [Description("Spawn a Scrap Helicopter")]
     internal class MyScrapHeli : RustPlugin
     {
@@ -73,11 +73,11 @@ namespace Oxide.Plugins
                 configData.Global.cooldownmin = 2;
             }
 
-            AddCovalenceCommand("myheli", "SpawnMyScrapHeliCommand");
-            AddCovalenceCommand("noheli", "KillMyScrapHeliCommand");
-            AddCovalenceCommand("gheli",  "GetMyScrapHeliCommand");
-            AddCovalenceCommand("wheli",  "WhereisMyScrapHeliCommand");
-            AddCovalenceCommand("reheli", "ReSpawnMyScrapHeliCommand");
+            AddCovalenceCommand("myscrap", "SpawnMyScrapHeliCommand");
+            AddCovalenceCommand("noscrap", "KillMyScrapHeliCommand");
+            AddCovalenceCommand("gscrap",  "GetMyScrapHeliCommand");
+            AddCovalenceCommand("wscrap",  "WhereisMyScrapHeliCommand");
+            AddCovalenceCommand("rescrap", "ReSpawnMyScrapHeliCommand");
         }
 
         private void OnNewSave()
@@ -122,30 +122,30 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                {"MyheliHelp", "Spawn scrap copter in front of you." },
-                {"NoheliHelp", "Destroy your scrap copter if in range ({0} meters)." },
-                {"WheliHelp", "Find your scrap copter." },
-                {"GetheliHelp", "Retrieve your scrap copter." },
-                {"AlreadyMsg", "You already have a heli scrap copter.\nUse command '/noheli' to remove it."},
-                {"SpawnedMsg", "Your scrap copter has spawned !\nUse command '/noheli' to remove it."},
-                {"KilledMsg", "Your scrap copter has been removed/killed."},
+                {"MyScrapHelp", "Spawn scrap heli in front of you." },
+                {"NoScrapHelp", "Destroy your scrap heli if in range ({0} meters)." },
+                {"WScraphelp", "Find your scrap heli." },
+                {"GetheliHelp", "Retrieve your scrap heli." },
+                {"AlreadyMsg", "You already have a heli scrap heli.\nUse command '/noscrap' to remove it."},
+                {"SpawnedMsg", "Your scrap heli has spawned !\nUse command '/noscrap' to remove it."},
+                {"KilledMsg", "Your scrap heli has been removed/killed."},
                 {"NoPermMsg", "You are not allowed to do this."},
                 {"SpawnUsage", "You need to supply a valid SteamId."},
                 {"NoFoundMsg", "You do not have an active copter."},
                 {"FoundMsg", "Your copter is located at {0}."},
-                {"CooldownMsg", "You must wait {0} seconds before spawning a new scrap copter."},
-                {"DistanceMsg", "You must be within {0} meters of your scrap copter."},
-                {"RunningMsg", "Your scrap copter is currently flying and cannot be fetched."},
-                {"BlockedMsg", "You cannot spawn or fetch your scrap copter while building blocked."}
+                {"CooldownMsg", "You must wait {0} seconds before spawning a new scrap heli."},
+                {"DistanceMsg", "You must be within {0} meters of your scrap heli."},
+                {"RunningMsg", "Your scrap heli is currently flying and cannot be fetched."},
+                {"BlockedMsg", "You cannot spawn or fetch your scrap heli while building blocked."}
             }, this, "en");
 
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                {"MyheliHelp", "Créez un hélicoptère devant vous." },
-                {"NoheliHelp", "Détruisez votre hélicoptère si il est à portée. ({0} mètres)." },
-                {"GetheliHelp", "Récupérez votre hélicoptère." },
-                {"AlreadyMsg", "Vous avez déjà un hélicoptère\nUtilisez la commande '/noheli' pour le supprimer."},
-                {"SpawnedMsg", "Votre hélico est arrivé !\nUtilisez la commande '/noheli' pour le supprimer."},
+                {"MyScrapHelp", "Créez un hélicoptère devant vous." },
+                {"NoScrapHelp", "Détruisez votre hélicoptère si il est à portée. ({0} mètres)." },
+                {"GetScrapHelp", "Récupérez votre hélicoptère." },
+                {"AlreadyMsg", "Vous avez déjà un hélicoptère\nUtilisez la commande '/noscrap' pour le supprimer."},
+                {"SpawnedMsg", "Votre hélico est arrivé !\nUtilisez la commande '/noscrap' pour le supprimer."},
                 {"KilledMsg", "Votre hélico a disparu du monde."},
                 {"NoPermMsg", "Vous n'êtes pas autorisé."},
                 {"SpawnUsage", "Vous devez fournir un SteamId valide."},
@@ -173,7 +173,7 @@ namespace Oxide.Plugins
 
         #region Commands
         // Chat spawn
-        [Command("myheli")]
+        [Command("myscrap")]
         private void SpawnMyScrapHeliCommand(IPlayer player, string command, string[] args)
         {
             double secondsSinceEpoch = DateTime.UtcNow.Subtract(epoch).TotalSeconds;
@@ -202,8 +202,6 @@ namespace Oxide.Plugins
 
             bool hascooldown = player.HasPermission(ScrapHeliCooldown);
             if (!configData.Global.useCooldown) hascooldown = false;
-
-            int secsleft = 0;
             if (hascooldown)
             {
                 if (!storedData.playercounter.ContainsKey(bplayer.userID))
@@ -224,7 +222,7 @@ namespace Oxide.Plugins
                     }
                     else
                     {
-                        secsleft = Math.Abs((int)((configData.Global.cooldownmin * 60) - (secondsSinceEpoch - count)));
+                        int secsleft = Math.Abs((int)((configData.Global.cooldownmin * 60) - (secondsSinceEpoch - count)));
 
                         if (secsleft > 0)
                         {
@@ -247,7 +245,7 @@ namespace Oxide.Plugins
         }
 
         // Fetch copter
-        [Command("gheli")]
+        [Command("gscrap")]
         private void GetMyScrapHeliCommand(IPlayer player, string command, string[] args)
         {
             BasePlayer bplayer = player.Object as BasePlayer;
@@ -274,9 +272,9 @@ namespace Oxide.Plugins
                     BaseNetworkable ent = BaseNetworkable.serverEntities.Find(new NetworkableId(findme));
 
                     // Distance check
-                    if (configData.Global.ghelidistance > 0f && Vector3.Distance(bplayer.transform.position, ent.transform.position) > configData.Global.ghelidistance)
+                    if (configData.Global.gscrapdistance > 0f && Vector3.Distance(bplayer.transform.position, ent.transform.position) > configData.Global.gscrapdistance)
                     {
-                        Message(player, "DistanceMsg", configData.Global.ghelidistance);
+                        Message(player, "DistanceMsg", configData.Global.gscrapdistance);
                         return;
                     }
 
@@ -318,7 +316,7 @@ namespace Oxide.Plugins
         }
 
         // Find copter
-        [Command("wheli")]
+        [Command("wscrap")]
         private void WhereisMyScrapHeliCommand(IPlayer player, string command, string[] args)
         {
             if (!player.HasPermission(ScrapHeliWhere))
@@ -345,14 +343,14 @@ namespace Oxide.Plugins
         }
 
         // Chat despawn
-        [Command("reheli")]
+        [Command("rescrap")]
         private void ReSpawnMyScrapHeliCommand(IPlayer player, string command, string[] args)
         {
-            KillMyScrapHeliCommand(player, "noheli", new string[0]);
-            SpawnMyScrapHeliCommand(player, "myheli", new string[0]);
+            KillMyScrapHeliCommand(player, "noscrap", new string[0]);
+            SpawnMyScrapHeliCommand(player, "myscrap", new string[0]);
         }
 
-        [Command("noheli")]
+        [Command("noscrap")]
         private void KillMyScrapHeliCommand(IPlayer player, string command, string[] args)
         {
             if (!player.HasPermission(ScrapHeliSpawn))
@@ -771,14 +769,14 @@ namespace Oxide.Plugins
         private void SendHelpText(BasePlayer player)
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("<color=#05eb59>").Append(Name).Append(' ').Append(Version).Append("</color> · Spawn a heli Helicopter\n");
-            sb.Append("  · ").Append("/myheli: ").AppendLine(Lang("MyheliHelp", null, configData.Global.mindistance));
-            sb.Append("  · ").Append("/noheli: ").AppendLine(Lang("NoheliHelp", null, configData.Global.mindistance));
-            sb.Append("  · ").Append("/wheli: ").AppendLine(Lang("WheliHelp"));
+            sb.Append("<color=#05eb59>").Append(Name).Append(' ').Append(Version).Append("</color> · Spawn a Scrap Helicopter\n");
+            sb.Append("  · ").Append("/myscrap: ").AppendLine(Lang("MyScrapHelp", null, configData.Global.mindistance));
+            sb.Append("  · ").Append("/noscrap: ").AppendLine(Lang("NoScrapHelp", null, configData.Global.mindistance));
+            sb.Append("  · ").Append("/wscrap: ").AppendLine(Lang("WScrapHelp"));
 
             if (permission.UserHasPermission(player.UserIDString, ScrapHeliFetch))
             {
-                sb.Append("  · ").Append("/gheli: ").AppendLine(Lang("GetheliHelp"));
+                sb.Append("  · ").Append("/gscrap: ").AppendLine(Lang("GetScrapHelp"));
             }
             player.ChatMessage(sb.ToString());
         }
@@ -798,7 +796,7 @@ namespace Oxide.Plugins
             public float stdFuelConsumption;
             public float cooldownmin;
             public float mindistance;
-            public float ghelidistance;
+            public float gscrapdistance;
             public float minDismountHeight;
             public float startingFuel;
             public string Prefix; // Chat prefix
@@ -840,7 +838,7 @@ namespace Oxide.Plugins
                     stdFuelConsumption = 0.25f,
                     cooldownmin = 60f,
                     mindistance = 0f,
-                    ghelidistance = 0f,
+                    gscrapdistance = 0f,
                     minDismountHeight = 7f,
                     startingFuel = 0f,
                     Prefix = "[My ScrapHeli]: "
