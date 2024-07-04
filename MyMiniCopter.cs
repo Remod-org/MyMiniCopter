@@ -43,19 +43,19 @@
     SOFTWARE.
  */
 #endregion
-using UnityEngine;
-using System.Collections.Generic;
 using Oxide.Core;
-using System;
-using System.Linq;
-using Oxide.Core.Plugins;
-using System.Text;
 using Oxide.Core.Libraries.Covalence;
+using Oxide.Core.Plugins;
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.0")]
+    [Info("My Mini Copter", "RFC1920", "0.6.1")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -141,7 +141,7 @@ namespace Oxide.Plugins
                     hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
                 }
 
-                StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
+                StorageContainer fuelCan = miniCopter?.GetFuelSystem() as StorageContainer;
                 if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited) || (vip && vipsettings.unlimited))
                 {
                     miniCopter.fuelPerSec = 0f;
@@ -184,10 +184,10 @@ namespace Oxide.Plugins
 
             AddCovalenceCommand("mymini", "SpawnMyMinicopterCommand");
             AddCovalenceCommand("nomini", "KillMyMinicopterCommand");
-            AddCovalenceCommand("gmini",  "GetMyMiniMyCopterCommand");
-            AddCovalenceCommand("wmini",  "WhereisMyMiniMyCopterCommand");
+            AddCovalenceCommand("gmini", "GetMyMiniMyCopterCommand");
+            AddCovalenceCommand("wmini", "WhereisMyMiniMyCopterCommand");
             AddCovalenceCommand("remini", "ReSpawnMyMinicopterCommand");
-            AddCovalenceCommand("hmini",  "HoverMyMinicopterCommand");
+            AddCovalenceCommand("hmini", "HoverMyMinicopterCommand");
 
             permission.RegisterPermission(MinicopterSpawn, this);
             permission.RegisterPermission(MinicopterFetch, this);
@@ -259,6 +259,29 @@ namespace Oxide.Plugins
                 {"NotInHelicopter", "Vous n'êtes pas dans un mini hélicoptère" },
                 {"NoPassengerToggle", "Les passagers ne peuvent pas basculer en vol stationnaire" }
             }, this, "fr");
+        }
+
+        private object CanLootEntity(BasePlayer player, StorageContainer container)
+        {
+            if (player?.userID == 0) return null;
+            Minicopter mini = container.GetParentEntity() as Minicopter;
+            if (mini != null)
+            {
+                Puts("This is a mini");
+                if (storedData.playerminiID.ContainsKey(player.userID) && mini?.net.ID.Value == storedData.playerminiID[player.userID].Value)
+                {
+                    Puts("...and this is one of ours");
+                    GetVIPSettings(player, out VIPSettings vipsettings);
+                    bool unlimited = permission.UserHasPermission(player.UserIDString, MinicopterUnlimited) || vipsettings.unlimited;
+                    if (!(unlimited && configData.Global.allowFuelIfUnlimited))
+                    {
+                        Message(player.IPlayer, "NoPermMsg");
+                        return true;
+                    }
+                }
+                return null;
+            }
+            return null;
         }
 
         private void OnPlayerInput(BasePlayer player, InputState input)
@@ -517,7 +540,7 @@ namespace Oxide.Plugins
                                 mounted.DismountObject();
                                 mounted.MovePosition(player_pos);
                                 mounted.SendNetworkUpdateImmediate(false);
-                                mounted.ClientRPCPlayer(null, bplayer, "ForcePositionTo", player_pos);
+                                mounted.ClientRPC(RpcTarget.Player("ForcePositionTo", bplayer), player_pos);
                                 mountPointInfo.mountable._mounted = null;
                             }
                         }
@@ -743,23 +766,21 @@ namespace Oxide.Plugins
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
-                    StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
-                    if (fuelCan?.IsValid() == true)
+                    IFuelSystem fuelCan = miniCopter?.GetFuelSystem();
+                    if (fuelCan != null)
                     {
-                        ItemManager.CreateByItemID(-946369541, 1)?.MoveToContainer(fuelCan.inventory);
-                        fuelCan.inventory.MarkDirty();
-                        fuelCan.SetFlag(BaseEntity.Flags.Locked, true);
+                        fuelCan?.AddFuel(1);
+                        // LOCKED by CanLootEntity hook
                     }
                 }
             }
             else if (configData.Global.startingFuel > 0 || (vip && vipsettings.startingFuel > 0))
             {
-                StorageContainer fuelCan = miniCopter?.GetFuelSystem().fuelStorageInstance.Get(true);
-                if (fuelCan?.IsValid() == true)
+                IFuelSystem fuelCan = miniCopter?.GetFuelSystem();
+                if (fuelCan != null)
                 {
                     float sf = vip ? vipsettings.startingFuel : configData.Global.startingFuel;
-                    ItemManager.CreateByItemID(-946369541, Convert.ToInt32(sf))?.MoveToContainer(fuelCan.inventory);
-                    fuelCan.inventory.MarkDirty();
+                    fuelCan.AddFuel((int)sf);
                 }
             }
             else
@@ -780,7 +801,7 @@ namespace Oxide.Plugins
         }
 
         // Kill minicopter hook
-        private void KillMyMinicopterPlease(BasePlayer player, bool killalways=false)
+        private void KillMyMinicopterPlease(BasePlayer player, bool killalways = false)
         {
             bool foundcopter = false;
             VIPSettings vipsettings;
@@ -834,7 +855,7 @@ namespace Oxide.Plugins
         {
             if (configData.Global.useNoEscape && NoEscape)
             {
-                return (bool) NoEscape?.CallHook("IsRaidBlocked", player);
+                return (bool)NoEscape?.CallHook("IsRaidBlocked", player);
             }
             return false;
         }
@@ -1122,7 +1143,7 @@ namespace Oxide.Plugins
             if (configData.Global.useClans && Clans != null)
             {
                 string playerclan = (string)Clans?.CallHook("GetClanOf", playerid);
-                string ownerclan  = (string)Clans?.CallHook("GetClanOf", ownerid);
+                string ownerclan = (string)Clans?.CallHook("GetClanOf", ownerid);
                 if (playerclan == ownerclan && playerclan != null && ownerclan != null)
                 {
                     return true;
@@ -1463,7 +1484,7 @@ namespace Oxide.Plugins
             {
                 if (Instance.configData.Global.TimedHover) _timedHoverTimer = Instance.timer.Once(Instance.configData.Global.HoverDuration, () => StopHover());
 
-                EntityFuelSystem fuelSystem = _minicopter?.GetFuelSystem();
+                IFuelSystem fuelSystem = _minicopter?.GetFuelSystem();
                 /* Using GetDriver, the engine will begin stalling and then die in a few seconds if the playerowner moves to the passenger seat.
                  * - The engine stops mid-air, which is not realistic.
                  * - The playerowner can move back and the engine should start again.
