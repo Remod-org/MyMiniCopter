@@ -55,7 +55,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.2")]
+    [Info("My Mini Copter", "RFC1920", "0.6.3")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -273,11 +273,15 @@ namespace Oxide.Plugins
 
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
-            if (player?.userID.IsSteamId() != true || input == null) return;
             if (!configData.Global.UseKeystrokeForHover) return;
-            if (!permission.UserHasPermission(player.UserIDString, MinicopterCanHover)) return;
+            if (!input.IsValidEntityReference()) return;
+            if (player?.userID.IsSteamId() != true || input == null) return;
+            if (!permission.UserHasPermission(player?.UserIDString, MinicopterCanHover)) return;
             //if (input.current.buttons > 0) Puts($"OnPlayerInput: {input.current.buttons}");
-            if (!player.isMounted) return;
+            if (!player.isMounted)
+            {
+                return;
+            }
             int hoverkey = configData.Global.HoverKey > 0 ? configData.Global.HoverKey : (int)BUTTON.FIRE_THIRD; // MMB
             bool dohover = input.current.buttons == hoverkey;
             bool stabilize = input.current.buttons == (int)BUTTON.BACKWARD;
@@ -309,7 +313,7 @@ namespace Oxide.Plugins
                 hoverDelayTimers.Add(player.userID, DateTime.Now);
             }
 
-            // Process hover or stablize
+            // Process hover or stabilize
             if (storedData.playerminiID.ContainsKey(player.userID) && mini?.net.ID.Value == storedData.playerminiID[player.userID].Value)
             {
                 if (dohover && player != mini?.GetDriver() && !configData.Global.PassengerCanToggleHover)
@@ -330,7 +334,7 @@ namespace Oxide.Plugins
                     else if (dohover && hovers.ContainsKey(iid))
                     {
                         DoLog($"Toggling hover for {mini.net.ID}");
-                        hovers[iid]?.ToggleHover();
+                        NextTick(() => hovers[iid]?.ToggleHover());
                     }
                 }
             }
@@ -1436,7 +1440,7 @@ namespace Oxide.Plugins
                 foreach (BaseVehicle.MountPointInfo info in _helicopter.mountPoints)
                 {
                     BasePlayer player = info.mountable.GetMounted();
-                    if (player != null) Instance.PrintToChat(player, Instance.lang.GetMessage(isHovering ? "HoverEnabled" : "HoverDisabled", Instance, player.UserIDString));
+                    if (player != null) Instance.SendReply(player, Instance.lang.GetMessage(isHovering ? "HoverEnabled" : "HoverDisabled", Instance, player.UserIDString));
                 }
             }
 
