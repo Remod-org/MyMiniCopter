@@ -55,7 +55,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.3")]
+    [Info("My Mini Copter", "RFC1920", "0.6.4")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -254,12 +254,11 @@ namespace Oxide.Plugins
             Minicopter mini = container.GetParentEntity() as Minicopter;
             if (mini != null)
             {
-                Puts("This is a mini");
                 if (storedData.playerminiID.ContainsKey(player.userID) && mini?.net.ID.Value == storedData.playerminiID[player.userID].Value)
                 {
-                    Puts("...and this is one of ours");
                     GetVIPSettings(player, out VIPSettings vipsettings);
-                    bool unlimited = permission.UserHasPermission(player.UserIDString, MinicopterUnlimited) || vipsettings.unlimited;
+                    bool vip = vipsettings != null;
+                    bool unlimited = permission.UserHasPermission(player.UserIDString, MinicopterUnlimited) || (vip && vipsettings.unlimited);
                     if (!(unlimited && configData.Global.allowFuelIfUnlimited))
                     {
                         Message(player.IPlayer, "NoPermMsg");
@@ -1153,12 +1152,14 @@ namespace Oxide.Plugins
 
         private void GetVIPSettings(BasePlayer player, out VIPSettings vipsettings)
         {
+            vipsettings = null;
             if (player?.userID.IsSteamId() != true)
             {
                 DoLog("User has no VIP settings");
-                vipsettings = null;
                 return;
             }
+            if (configData.VIPSettings == null) return;
+
             foreach (KeyValuePair<string, VIPSettings> vip in configData.VIPSettings)
             {
                 string perm = vip.Key.StartsWith($"{Name.ToLower()}.") ? vip.Key : $"{Name.ToLower()}.{vip.Key}";
@@ -1169,7 +1170,6 @@ namespace Oxide.Plugins
                     return; // No need to keep trying
                 }
             }
-            vipsettings = null;
         }
 
         private static BasePlayer FindPlayerById(ulong userid)
