@@ -55,7 +55,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.4")]
+    [Info("My Mini Copter", "RFC1920", "0.6.5")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -259,6 +259,7 @@ namespace Oxide.Plugins
                     GetVIPSettings(player, out VIPSettings vipsettings);
                     bool vip = vipsettings != null;
                     bool unlimited = permission.UserHasPermission(player.UserIDString, MinicopterUnlimited) || (vip && vipsettings.unlimited);
+                    if (!unlimited) return null;
                     if (!(unlimited && configData.Global.allowFuelIfUnlimited))
                     {
                         Message(player.IPlayer, "NoPermMsg");
