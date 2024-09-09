@@ -1,7 +1,7 @@
 #region License (GPL v2)
 /*
     DESCRIPTION
-    Copyright (c) 2023 RFC1920 <desolationoutpostpve@gmail.com>
+    Copyright (c) 2024 RFC1920 <desolationoutpostpve@gmail.com>
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License v2.0
@@ -55,7 +55,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.5")]
+    [Info("My Mini Copter", "RFC1920", "0.6.7")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -142,7 +142,7 @@ namespace Oxide.Plugins
                 }
 
                 IFuelSystem fuelCan = miniCopter?.GetFuelSystem();
-                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited) || (vip && vipsettings.unlimited))
+                if (permission.UserHasPermission(playerMini.Key.ToString(), MinicopterUnlimited) || (vip && vipsettings.unlimited && !vipsettings.canloot))
                 {
                     miniCopter.fuelPerSec = 0f;
                     if (fuelCan != null)
@@ -736,33 +736,30 @@ namespace Oxide.Plugins
             Vector3 position = player.transform.position + (straight * 5f);
             position.y = player.transform.position.y + 2.5f;
 
-            if (position == default(Vector3)) return;
+            if (position == default) return;
             BaseVehicle vehicleMini = (BaseVehicle)GameManager.server.CreateEntity(prefab, position, new Quaternion());
             if (vehicleMini == null) return;
             vehicleMini.OwnerID = player.userID;
 
-            Minicopter miniCopter = vehicleMini as Minicopter;
 
             vehicleMini.Spawn();
+            Minicopter miniCopter = vehicleMini as Minicopter;
             if (permission.UserHasPermission(player.UserIDString, MinicopterCanHover))
             {
                 hovers.Add(miniCopter.GetInstanceID(), miniCopter.gameObject.AddComponent<Hovering>());
             }
             if (permission.UserHasPermission(player.UserIDString, MinicopterUnlimited) || (vip && vipsettings.unlimited))
             {
-                // Set fuel requirements to 0
                 DoLog("Setting fuel requirements to zero");
                 miniCopter.fuelPerSec = 0f;
-                if (!configData.Global.allowFuelIfUnlimited && !(vip && vipsettings.canloot))
+
+                if (!configData.Global.allowFuelIfUnlimited && !(vip && !vipsettings.canloot))
                 {
                     // If the player is not allowed to use the fuel container, add 1 fuel so the copter will start.
                     // Also lock fuel container since there is no point in adding/removing fuel
-                    IFuelSystem fuelCan = miniCopter?.GetFuelSystem();
-                    if (fuelCan != null)
-                    {
-                        fuelCan?.AddFuel(1);
-                        // LOCKED by CanLootEntity hook
-                    }
+                    IFuelSystem fuelCan = miniCopter.GetFuelSystem();
+                    DoLog("Adding 1 fuel");
+                    fuelCan?.AddFuel(1);
                 }
             }
             else if (configData.Global.startingFuel > 0 || (vip && vipsettings.startingFuel > 0))
@@ -855,6 +852,7 @@ namespace Oxide.Plugins
         #region hooks
         private object CanMountEntity(BasePlayer player, BaseMountable mountable)
         {
+            if (player?.userID.IsSteamId() != true) return null;
             if (mountable == null) return null;
             Minicopter mini = mountable?.GetComponentInParent<Minicopter>();
             if (mini == null) return null;
@@ -925,8 +923,10 @@ namespace Oxide.Plugins
         private object CanDismountEntity(BasePlayer player, BaseMountable mountable)
         {
             if (player?.userID.IsSteamId() != true) return null;
+            if (mountable == null) return null;
             Minicopter mini = mountable?.GetComponentInParent<Minicopter>();
-            DoLog($"CanDismountEntity: Player {player.userID} wants to dismount seat id {mountable.net.ID}");
+            if (mini == null) return null;
+            DoLog($"CanDismountEntity: Player {player?.userID} wants to dismount seat id {mountable?.net.ID}");
 
             // Only operates if mini is not null and if we are flying above minimum height
             if (mini != null && !Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), configData.Global.minDismountHeight, layerMask))
