@@ -55,7 +55,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.7")]
+    [Info("My Mini Copter", "RFC1920", "0.6.8")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -77,29 +77,29 @@ namespace Oxide.Plugins
 
         private static LayerMask layerMask = LayerMask.GetMask("Terrain", "World", "Construction");
 
-        private Dictionary<ulong, ulong> currentMounts = new Dictionary<ulong, ulong>();
-        private Dictionary<int, Hovering> hovers = new Dictionary<int, Hovering>();
-        private Dictionary<ulong, DateTime> hoverDelayTimers = new Dictionary<ulong, DateTime>();
-        private static readonly DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0);
+        private Dictionary<ulong, ulong> currentMounts = new();
+        private Dictionary<int, Hovering> hovers = new();
+        private Dictionary<ulong, DateTime> hoverDelayTimers = new();
+        private static readonly DateTime epoch = new(1970, 1, 1, 0, 0, 0);
         private bool do056upgrade;
 
         private class StoredData
         {
-            public Dictionary<ulong, NetworkableId> playerminiID = new Dictionary<ulong, NetworkableId>();
-            public Dictionary<ulong, double> playercounter = new Dictionary<ulong, double>();
+            public Dictionary<ulong, NetworkableId> playerminiID = new();
+            public Dictionary<ulong, double> playercounter = new();
         }
         private StoredData storedData;
 
         // For pre-0.5.6 upgrade
         private class OldStoredData
         {
-            public Dictionary<ulong, uint> playerminiID = new Dictionary<ulong, uint>();
-            public Dictionary<ulong, double> playercounter = new Dictionary<ulong, double>();
+            public Dictionary<ulong, uint> playerminiID = new();
+            public Dictionary<ulong, double> playercounter = new();
         }
 
         private bool HasPermission(ConsoleSystem.Arg arg, string permname)
         {
-            return !(arg.Connection.player is BasePlayer) || permission.UserHasPermission((arg.Connection.player as BasePlayer)?.UserIDString, permname);
+            return arg.Connection.player is not BasePlayer || permission.UserHasPermission((arg.Connection.player as BasePlayer)?.UserIDString, permname);
         }
 
         #region loadunload
@@ -530,13 +530,13 @@ namespace Oxide.Plugins
                                 Vector3 player_pos = mounted.transform.position + new Vector3(1, 0, 1);
                                 mounted.DismountObject();
                                 mounted.MovePosition(player_pos);
-                                mounted.SendNetworkUpdateImmediate(false);
+                                mounted.SendNetworkUpdateImmediate();
                                 mounted.ClientRPC(RpcTarget.Player("ForcePositionTo", bplayer), player_pos);
                                 mountPointInfo.mountable._mounted = null;
                             }
                         }
                     }
-                    Vector3 newLoc = new Vector3(bplayer.transform.position.x + 2f, bplayer.transform.position.y + 2f, bplayer.transform.position.z + 2f);
+                    Vector3 newLoc = new(bplayer.transform.position.x + 2f, bplayer.transform.position.y + 2f, bplayer.transform.position.z + 2f);
                     foundent.transform.position = newLoc;
                     Message(player, "FoundMsg", newLoc);
                 }
@@ -802,7 +802,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                List<BaseEntity> copterlist = new List<BaseEntity>();
+                List<BaseEntity> copterlist = new();
                 Vis.Entities(player.transform.position, minDistance, copterlist);
 
                 foreach (BaseEntity p in copterlist)
@@ -858,7 +858,7 @@ namespace Oxide.Plugins
             if (mini == null) return null;
 
             DoLog($"CanMountEntity: Player {player?.userID} wants to mount seat id {mountable?.net.ID}");
-            NetworkableId currentseat = new NetworkableId(mini.net.ID.Value);
+            NetworkableId currentseat = new(mini.net.ID.Value);
             currentseat.Value += 3; // Start with driver seat
             for (int i = 0; i < 2; i++)
             {
@@ -900,7 +900,7 @@ namespace Oxide.Plugins
             {
                 DoLog($"OnEntityMounted: Player {player.userID} mounted seat id {mountable.net.ID}");
                 // Check this seat's ID to see if the copter is one of ours
-                NetworkableId currentseat = new NetworkableId(mini.net.ID.Value);
+                NetworkableId currentseat = new(mini.net.ID.Value);
                 currentseat.Value += 3; // Start with driver seat
                 for (int i = 0; i < 2; i++)
                 {
@@ -932,9 +932,9 @@ namespace Oxide.Plugins
             if (mini != null && !Physics.Raycast(new Ray(mountable.transform.position, Vector3.down), configData.Global.minDismountHeight, layerMask))
             {
                 DoLog($"Is this our copter with ID {mini.net.ID.Value}?");
-                NetworkableId passenger = new NetworkableId(mini.net.ID.Value);
+                NetworkableId passenger = new(mini.net.ID.Value);
                 passenger.Value += 4;
-                NetworkableId driver = new NetworkableId(mini.net.ID.Value);
+                NetworkableId driver = new(mini.net.ID.Value);
                 driver.Value += 3;
                 if (storedData.playerminiID.ContainsValue(mini.net.ID))
                 {
@@ -967,7 +967,7 @@ namespace Oxide.Plugins
             if (mini != null)
             {
                 DoLog($"OnEntityDismounted: Player {player.userID} dismounted seat id {mountable.net.ID}");
-                NetworkableId currentseat = new NetworkableId(mini.net.ID.Value);
+                NetworkableId currentseat = new(mini.net.ID.Value);
                 currentseat.Value += 3; // Start with driver seat
                 for (int i = 0; i < 2; i++)
                 {
@@ -995,7 +995,7 @@ namespace Oxide.Plugins
 
             if (storedData == null) return;
             if (storedData.playerminiID == null) return;
-            ulong todelete = new ulong();
+            ulong todelete = new();
 
             if (!storedData.playerminiID.ContainsValue(entity.net.ID))
             {
@@ -1105,7 +1105,7 @@ namespace Oxide.Plugins
         [HookMethod("SendHelpText")]
         private void SendHelpText(BasePlayer player)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.Append("<color=#05eb59>").Append(Name).Append(' ').Append(Version).Append("</color> · Spawn a Mini Helicopter\n");
             sb.Append("  · ").Append("/mymini: ").AppendLine(Lang("MyMiniHelp", null, configData.Global.mindistance));
             sb.Append("  · ").Append("/nomini: ").AppendLine(Lang("NoMiniHelp", null, configData.Global.mindistance));
@@ -1316,7 +1316,7 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             Puts("Creating new config file.");
-            ConfigData config = new ConfigData
+            ConfigData config = new()
             {
                 Global = new Global()
                 {
@@ -1374,7 +1374,7 @@ namespace Oxide.Plugins
                 {
                     foreach (KeyValuePair<ulong, uint> playerMini in oldminiData.playerminiID)
                     {
-                        NetworkableId ni = new NetworkableId()
+                        NetworkableId ni = new()
                         {
                             Value = playerMini.Value
                         };
