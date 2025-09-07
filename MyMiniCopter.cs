@@ -55,7 +55,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Mini Copter", "RFC1920", "0.6.8")]
+    [Info("My Mini Copter", "RFC1920", "0.6.9")]
     // Thanks to BuzZ[PHOQUE], the original author of this plugin
     [Description("Spawn a Mini Helicopter")]
     internal class MyMiniCopter : RustPlugin
@@ -274,7 +274,7 @@ namespace Oxide.Plugins
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
             if (!configData.Global.UseKeystrokeForHover) return;
-            if (!input.IsValidEntityReference()) return;
+            //if (!input.IsValidEntityReference()) return; // This was added at some point to fix some NRE, but now seems to prevent operation.
             if (player?.userID.IsSteamId() != true || input == null) return;
             if (!permission.UserHasPermission(player?.UserIDString, MinicopterCanHover)) return;
             //if (input.current.buttons > 0) Puts($"OnPlayerInput: {input.current.buttons}");
