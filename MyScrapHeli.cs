@@ -30,7 +30,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("My Scrap Heli", "RFC1920", "0.0.5")]
+    [Info("My Scrap Heli", "RFC1920", "0.0.6")]
     [Description("Spawn a Scrap Helicopter")]
     internal class MyScrapHeli : RustPlugin
     {
@@ -297,7 +297,7 @@ namespace Oxide.Plugins
                                 Vector3 player_pos = mounted.transform.position + new Vector3(1, 0, 1);
                                 mounted.DismountObject();
                                 mounted.MovePosition(player_pos);
-                                mounted.SendNetworkUpdateImmediate(false);
+                                mounted.SendNetworkUpdateImmediate();
                                 mounted.ClientRPC(RpcTarget.Player("ForcePositionTo", bplayer), player_pos);
                                 mountPointInfo.mountable._mounted = null;
                             }
